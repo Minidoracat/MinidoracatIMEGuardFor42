@@ -21,12 +21,13 @@ use tray_icon::{
     Icon, TrayIcon, TrayIconBuilder,
 };
 use windows::{
-    core::BOOL,
+    core::{w, BOOL},
     Win32::Foundation::{HWND, LPARAM, WPARAM},
     Win32::UI::Input::KeyboardAndMouse::{GetKeyboardLayout, GetKeyboardLayoutList, HKL},
     Win32::UI::WindowsAndMessaging::{
         DispatchMessageW, EnumWindows, GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
-        IsWindowVisible, PeekMessageW, PostMessageW, TranslateMessage, MSG, PM_REMOVE,
+        IsWindowVisible, MessageBoxW, PeekMessageW, PostMessageW, TranslateMessage, MB_ICONINFORMATION, MB_OK, MSG,
+        PM_REMOVE,
     },
 };
 
@@ -115,18 +116,49 @@ impl Status {
     }
 }
 
+/// 32×32 鍵帽底圖（assets/icon-src.png 縮圖，raw RGBA）＋右下角狀態燈（直徑 12、深色 1px 描邊）。
+const TRAY_BASE: &[u8] = include_bytes!("../assets/tray-32.rgba");
+
 fn icon(status: Status) -> Icon {
     let [r, g, b] = status.rgb();
-    let size = 16u32;
-    let mut rgba = Vec::with_capacity((size * size * 4) as usize);
+    let size = 32u32;
+    let mut rgba = TRAY_BASE.to_vec();
+    let (cx, cy, radius) = (25.0f32, 25.0f32, 6.0f32);
     for y in 0..size {
         for x in 0..size {
-            let edge = x == 0 || y == 0 || x == size - 1 || y == size - 1;
-            let px = if edge { [30, 30, 30, 255] } else { [r, g, b, 255] };
-            rgba.extend_from_slice(&px);
+            let d = ((x as f32 + 0.5 - cx).powi(2) + (y as f32 + 0.5 - cy).powi(2)).sqrt();
+            if d > radius + 1.0 {
+                continue;
+            }
+            let i = ((y * size + x) * 4) as usize;
+            let px = if d <= radius { [r, g, b, 255] } else { [30, 30, 30, 255] };
+            rgba[i..i + 4].copy_from_slice(&px);
         }
     }
-    Icon::from_rgba(rgba, size, size).expect("16x16 rgba icon")
+    Icon::from_rgba(rgba, size, size).expect("32x32 rgba icon")
+}
+
+/// 第一次啟動才彈：Windows 11 預設把新圖示收進「^」隱藏區，不講玩家不知道它跑起來了。
+fn first_run_notice(dir: &std::path::Path) {
+    let marker = dir.join("first-run-done.txt");
+    if marker.exists() {
+        return;
+    }
+    let _ = fs::create_dir_all(dir);
+    let _ = fs::write(&marker, "1");
+    unsafe {
+        MessageBoxW(
+            None,
+            w!("pz-ime-guard is now running in the system tray (it may be hidden under the ^ arrow).\n\
+                Green = English layout, orange = typing (your IME restored), grey = waiting for Project Zomboid.\n\
+                Right-click the icon to pause or quit. This notice is shown only once.\n\n\
+                pz-ime-guard 已在系統匣運作（可能收在 ^ 隱藏區）。\n\
+                綠＝英文鍵盤、橘＝打字中已切回你的輸入法、灰＝等待 Project Zomboid。\n\
+                右鍵圖示可暫停或結束。此訊息只顯示一次。"),
+            w!("pz-ime-guard"),
+            MB_OK | MB_ICONINFORMATION,
+        );
+    }
 }
 
 struct Guard {
@@ -223,6 +255,7 @@ fn main() {
         .expect("tray icon");
 
     let mut guard = Guard::new();
+    first_run_notice(&guard.dir);
     loop {
         pump_messages();
         while let Ok(event) = MenuEvent::receiver().try_recv() {

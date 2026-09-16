@@ -14,7 +14,7 @@ On Windows, whenever a CJK IME is in composition mode every keystroke goes to th
 [h2]🧰 How to use[/h2]
 [olist]
 [*] Subscribe and enable this mod.
-[*] Download [b]pz-ime-guard.exe[/b] from [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42/releases/latest]GitHub Releases[/url] and run it. It only shows a small square in the system tray: green = English layout active, orange = typing, your IME restored, grey = PZ not found or paused, red = no English (US) keyboard installed.
+[*] Download [b]pz-ime-guard.exe[/b] from [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42/releases/latest]GitHub Releases[/url] and run it. No window — just a keycap icon in the system tray (usually under the ^ overflow), with a small lamp in its corner: green = English layout active, orange = typing, your IME restored, grey = PZ not found or paused, red = no English (US) keyboard installed.
 [*] Play. If the tool is not running when you enter a world, you get one reminder.
 [/olist]
 Tip: enable Windows "Let me set a different input method for each app window" so the switch only affects PZ.

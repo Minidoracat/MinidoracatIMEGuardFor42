@@ -11,12 +11,12 @@ Windows 上只要中文／日文／韓文輸入法處於組字模式，按下的
 這是**兩件式**：MOD 負責告訴工具「玩家現在是不是在打字」，工具負責切輸入法。只訂閱 MOD 不會有任何效果。
 
 1. 訂閱 Workshop 上的 MOD 並啟用（Workshop 連結首發後補上）。
-2. 到 [Releases](https://github.com/Minidoracat/MinidoracatIMEGuardFor42/releases/latest) 下載 `pz-ime-guard.exe`，放在任何地方執行。它只會在系統匣出現一個小方塊，沒有視窗：
+2. 到 [Releases](https://github.com/Minidoracat/MinidoracatIMEGuardFor42/releases/latest) 下載 `pz-ime-guard.exe`，放在任何地方執行。它沒有視窗，只在系統匣放一個鍵帽圖示（Windows 11 通常收在「^」隱藏區，第一次啟動會彈一次說明），右下角的小燈代表狀態：
    - 灰：還沒找到 PZ 視窗、PZ 不在前景，或已暫停
    - 綠：PZ 已在英文鍵盤，移動鍵安全
    - 橘：你正在打字，已切回你的輸入法
    - 紅：系統沒有安裝「英文（美國）」鍵盤，工具無事可做
-   右鍵系統匣圖示可暫停或結束。
+   右鍵圖示可暫停或結束。
 3. 開遊戲。進遊戲時若工具沒在跑，畫面上會提醒一次。
 
 建議把 Windows「設定 → 時間與語言 → 輸入 → 進階鍵盤設定 → 讓我為每個應用程式視窗設定不同的輸入法」打勾，切換就只影響 PZ，不會連帶動到 Discord 等其他程式。
@@ -26,7 +26,7 @@ Windows 上只要中文／日文／韓文輸入法處於組字模式，按下的
 ## 運作方式
 
 - MOD（純 Lua，零 native）：每 frame 讀一次遊戲自己的「玩家正在打字」旗標，變化時把 `1`／`0` 寫進 `%USERPROFILE%\Zomboid\Lua\MinidoracatIMEGuard\state.txt`。
-- 工具（Rust，單一靜態 exe，358 KB）：每 250 ms 看 PZ 是否在前景，依 `state.txt` 決定該用哪個鍵盤配置，不對就對 PZ 視窗送 `WM_INPUTLANGCHANGEREQUEST`，下一輪回讀確認。不裝鍵盤 hook、不代送按鍵、不改登錄檔、不碰其他視窗。每 2 秒寫 `heartbeat.txt` 讓 MOD 知道它活著。
+- 工具（Rust，單一靜態 exe，約 450 KB）：每 250 ms 看 PZ 是否在前景，依 `state.txt` 決定該用哪個鍵盤配置，不對就對 PZ 視窗送 `WM_INPUTLANGCHANGEREQUEST`，下一輪回讀確認。不裝鍵盤 hook、不代送按鍵、不改登錄檔、不碰其他視窗。每 2 秒寫 `heartbeat.txt` 讓 MOD 知道它活著。
 
 退場條件：[LWJGL #946](https://github.com/LWJGL/lwjgl3/issues/946) 的 GLFW IME 修正合併、且 PZ 升到帶該修正的 LWJGL 版本時，這個 MOD 就不再需要。
 
