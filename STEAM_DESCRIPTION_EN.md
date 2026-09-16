@@ -38,7 +38,7 @@ Tip: enable Windows "Let me set a different input method for each app window" so
 [list]
 [*] [b]Mod ID:[/b] MinidoracatIMEGuardFor42
 [*] [b]Version:[/b] Build 42.20.4+
-[*] [b]Singleplayer / Multiplayer:[/b] both (client-side only; servers need nothing)
+[*] [b]Singleplayer / Multiplayer:[/b] both. SP: movement keys stop dying to the IME, and text boxes (search, naming) still switch back. MP: the server must list this mod (PZ only loads mods on the server's list); it does nothing server-side
 [*] [b]Platform:[/b] tool is Windows-only; macOS/Linux do not have this problem
 [/list]
 
@@ -47,8 +47,11 @@ Tip: enable Windows "Let me set a different input method for each app window" so
 [*] [url=https://discord.gg/Gur2V67]Discord[/url]
 [/list]
 
+[h2]☕ Support the author[/h2]
+The mod is free and always will be, with the source public on GitHub. If you enjoy it, consider buying me a coffee - tips go straight into servers and mod development.
+[url=https://ko-fi.com/minidoracat][img]https://raw.githubusercontent.com/Minidoracat/workshop-resources/refs/heads/main/badges/badge_kofi.png[/img][/url] [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42][img]https://raw.githubusercontent.com/Minidoracat/workshop-resources/refs/heads/main/badges/badge_github.png[/img][/url]
 
 [b]#Minidoracat[/b]
 
-Workshop ID: 
+Workshop ID: 3802890539
 Mod ID: MinidoracatIMEGuardFor42

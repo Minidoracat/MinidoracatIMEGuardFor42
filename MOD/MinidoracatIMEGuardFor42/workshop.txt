@@ -1,4 +1,5 @@
 version=1
+id=3802890539
 title=Minidoracat IME Guard for B42
 description=[h1]⌨️ Minidoracat IME Guard for B42[/h1]
 description=[h3]By Minidoracat[/h3]
@@ -40,7 +41,7 @@ description=[h2]📋 Mod info[/h2]
 description=[list]
 description=[*] [b]Mod ID:[/b] MinidoracatIMEGuardFor42
 description=[*] [b]Version:[/b] Build 42.20.4+
-description=[*] [b]Singleplayer / Multiplayer:[/b] both (client-side only; servers need nothing)
+description=[*] [b]Singleplayer / Multiplayer:[/b] both. SP: movement keys stop dying to the IME, and text boxes (search, naming) still switch back. MP: the server must list this mod (PZ only loads mods on the server's list); it does nothing server-side
 description=[*] [b]Platform:[/b] tool is Windows-only; macOS/Linux do not have this problem
 description=[/list]
 description=
@@ -49,10 +50,13 @@ description=[list]
 description=[*] [url=https://discord.gg/Gur2V67]Discord[/url]
 description=[/list]
 description=
+description=[h2]☕ Support the author[/h2]
+description=The mod is free and always will be, with the source public on GitHub. If you enjoy it, consider buying me a coffee - tips go straight into servers and mod development.
+description=[url=https://ko-fi.com/minidoracat][img]https://raw.githubusercontent.com/Minidoracat/workshop-resources/refs/heads/main/badges/badge_kofi.png[/img][/url] [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42][img]https://raw.githubusercontent.com/Minidoracat/workshop-resources/refs/heads/main/badges/badge_github.png[/img][/url]
 description=
 description=[b]#Minidoracat[/b]
 description=
-description=Workshop ID: 
+description=Workshop ID: 3802890539
 description=Mod ID: MinidoracatIMEGuardFor42
 tags=Build 42;Interface;Multiplayer
 visibility=public

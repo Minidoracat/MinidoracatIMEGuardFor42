@@ -38,7 +38,7 @@ Windows の「アプリ ウィンドウごとに異なる入力方式を設定�
 [list]
 [*] [b]Mod ID:[/b] MinidoracatIMEGuardFor42
 [*] [b]対応バージョン:[/b] Build 42.20.4+
-[*] [b]シングル / マルチ:[/b] 両対応（クライアント側のみ、サーバーには不要）
+[*] [b]シングル / マルチ:[/b] 両対応。シングル：移動キーが IME に奪われなくなり、検索や名前入力欄では IME に戻ります。マルチ：サーバーの MOD リストに本 MOD を入れる必要があります（PZ はサーバーのリストにある MOD だけ読み込みます）。サーバー側では何もしません
 [*] [b]プラットフォーム:[/b] ツールは Windows 専用。macOS／Linux にはこの問題はありません
 [/list]
 
@@ -47,8 +47,11 @@ Windows の「アプリ ウィンドウごとに異なる入力方式を設定�
 [*] [url=https://discord.gg/Gur2V67]Discord[/url]
 [/list]
 
+[h2]☕ 作者を支援[/h2]
+この MOD は今後もずっと無料、ソースは GitHub で公開しています。気に入ったらコーヒーを一杯おごってください。支援はサーバーと MOD 開発に使います。
+[url=https://ko-fi.com/minidoracat][img]https://raw.githubusercontent.com/Minidoracat/workshop-resources/refs/heads/main/badges/badge_kofi.png[/img][/url] [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42][img]https://raw.githubusercontent.com/Minidoracat/workshop-resources/refs/heads/main/badges/badge_github.png[/img][/url]
 
 [b]#Minidoracat[/b]
 
-Workshop ID: 
+Workshop ID: 3802890539
 Mod ID: MinidoracatIMEGuardFor42

@@ -38,7 +38,7 @@ Windows 上只要中文／日文／韓文輸入法在組字模式，每個按鍵
 [list]
 [*] [b]Mod ID:[/b] MinidoracatIMEGuardFor42
 [*] [b]支援版本:[/b] Build 42.20.4+
-[*] [b]單人 / 多人:[/b] 皆支援（純 client 端，伺服器不用裝）
+[*] [b]單人 / 多人:[/b] 皆支援。單人：移動鍵不再被輸入法卡住，搜尋、命名等文字框也會自動切回輸入法。多人：伺服器需把本 MOD 列進 mod 清單（PZ 連線時只載入伺服器清單上的 MOD），伺服器端本身不做任何事
 [*] [b]平台:[/b] 工具僅 Windows；Mac／Linux 沒有這個問題
 [/list]
 
@@ -47,8 +47,11 @@ Windows 上只要中文／日文／韓文輸入法在組字模式，每個按鍵
 [*] [url=https://discord.gg/Gur2V67]Discord 社群[/url]
 [/list]
 
+[h2]☕ 支持作者[/h2]
+MOD 永遠免費，原始碼公開在 GitHub。喜歡的話可以請我喝杯咖啡，贊助會用在伺服器與 MOD 開發上。
+[url=https://ko-fi.com/minidoracat][img]https://raw.githubusercontent.com/Minidoracat/workshop-resources/refs/heads/main/badges/badge_kofi.png[/img][/url] [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42][img]https://raw.githubusercontent.com/Minidoracat/workshop-resources/refs/heads/main/badges/badge_github.png[/img][/url]
 
 [b]#Minidoracat[/b]
 
-Workshop ID: 
+Workshop ID: 3802890539
 Mod ID: MinidoracatIMEGuardFor42

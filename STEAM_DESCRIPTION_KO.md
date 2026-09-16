@@ -38,7 +38,7 @@ Windows의 「앱 창마다 다른 입력기 설정」을 켜 두면 전환이 P
 [list]
 [*] [b]Mod ID:[/b] MinidoracatIMEGuardFor42
 [*] [b]지원 버전:[/b] Build 42.20.4+
-[*] [b]싱글 / 멀티:[/b] 모두 지원(클라이언트 전용, 서버에는 필요 없음)
+[*] [b]싱글 / 멀티:[/b] 모두 지원. 싱글: 이동 키가 IME에 먹히지 않고, 검색·이름 입력 칸에서는 IME로 돌아갑니다. 멀티: 서버의 모드 목록에 이 모드를 넣어야 합니다(PZ는 서버 목록의 모드만 불러옵니다). 서버 쪽에서는 아무것도 하지 않습니다
 [*] [b]플랫폼:[/b] 도구는 Windows 전용. macOS／Linux에는 이 문제가 없습니다
 [/list]
 
@@ -47,8 +47,11 @@ Windows의 「앱 창마다 다른 입력기 설정」을 켜 두면 전환이 P
 [*] [url=https://discord.gg/Gur2V67]Discord[/url]
 [/list]
 
+[h2]☕ 제작자 후원[/h2]
+이 모드는 앞으로도 무료이며 소스는 GitHub에 공개되어 있습니다. 마음에 드셨다면 커피 한 잔 사 주세요. 후원은 서버와 모드 개발에 쓰입니다.
+[url=https://ko-fi.com/minidoracat][img]https://raw.githubusercontent.com/Minidoracat/workshop-resources/refs/heads/main/badges/badge_kofi.png[/img][/url] [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42][img]https://raw.githubusercontent.com/Minidoracat/workshop-resources/refs/heads/main/badges/badge_github.png[/img][/url]
 
 [b]#Minidoracat[/b]
 
-Workshop ID: 
+Workshop ID: 3802890539
 Mod ID: MinidoracatIMEGuardFor42
