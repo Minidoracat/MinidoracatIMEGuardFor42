@@ -5,7 +5,6 @@ name: release
 on:
   push:
     tags: ["v*"]
-  workflow_dispatch:
 permissions:
   contents: write
 jobs:
@@ -31,8 +30,18 @@ jobs:
             tools/pz-ime-guard/target/release/pz-ime-guard.exe
             pz-ime-guard.exe.sha256
       - name: VirusTotal scan
+        id: vt
         uses: crazy-max/ghaction-virustotal@v4
         with:
           vt_api_key: ${{ secrets.VT_API_KEY }}
           files: tools/pz-ime-guard/target/release/pz-ime-guard.exe
-          update_release_body: true
+      - name: Append VirusTotal link to release notes
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ANALYSIS: ${{ steps.vt.outputs.analysis }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          $links = ($env:ANALYSIS -split ',') | ForEach-Object { $n, $u = $_ -split '=', 2; "- [$(Split-Path $n -Leaf)]($u)" }
+          $body = gh release view $env:TAG --json body -q .body
+          gh release edit $env:TAG --notes ($body.TrimEnd() + "`n`n### VirusTotal`n" + ($links -join "`n"))
