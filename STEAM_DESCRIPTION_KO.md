@@ -16,7 +16,7 @@ Windows에서 한국어·중국어·일본어 IME가 조합 모드에 있으면 
 [h2]🧰 사용 방법[/h2]
 [olist]
 [*] 이 모드를 구독하고 활성화합니다.
-[*] [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42/releases/latest]GitHub Releases[/url]에서 [b]pz-ime-guard.exe[/b]를 내려받아 실행합니다. 창은 없고 시스템 트레이에 키캡 아이콘만 표시됩니다(보통 ^ 안에 숨어 있음). 모서리의 작은 램프: 초록＝영어 배열, 주황＝입력 중(IME 복원됨), 회색＝PZ 미검출 또는 일시 정지, 빨강＝영어(미국) 키보드 미설치.
+[*] [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42/releases/latest]GitHub Releases[/url]에서 [b]pz-ime-guard.exe[/b]를 내려받아 실행합니다. 처음 실행 시 SmartScreen「Windows의 PC 보호」가 뜹니다(서명되지 않은 exe의 정상 안내): 「추가 정보 → 실행」을 누르거나, 먼저 exe 우클릭 → 속성 → 「차단 해제」를 체크하세요. 창은 없고 시스템 트레이에 키캡 아이콘만 표시됩니다(보통 ^ 안에 숨어 있음). 모서리의 작은 램프: 초록＝영어 배열, 주황＝입력 중(IME 복원됨), 회색＝PZ 미검출 또는 일시 정지, 빨강＝영어(미국) 키보드 미설치.
 [*] 게임을 시작합니다. 월드에 들어갈 때 도구가 실행 중이 아니면 한 번 알려 줍니다.
 [/olist]
 Windows의 「앱 창마다 다른 입력기 설정」을 켜 두면 전환이 PZ에만 적용됩니다.

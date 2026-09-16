@@ -11,7 +11,7 @@ Windows 上只要中文／日文／韓文輸入法處於組字模式，按下的
 這是**兩件式**：MOD 負責告訴工具「玩家現在是不是在打字」，工具負責切輸入法。只訂閱 MOD 不會有任何效果。
 
 1. 訂閱 [Workshop 上的 MOD](https://steamcommunity.com/sharedfiles/filedetails/?id=3802890539) 並啟用。
-2. 到 [Releases](https://github.com/Minidoracat/MinidoracatIMEGuardFor42/releases/latest) 下載 `pz-ime-guard.exe`，放在任何地方執行。它沒有視窗，只在系統匣放一個鍵帽圖示（Windows 11 通常收在「^」隱藏區，第一次啟動會彈一次說明），右下角的小燈代表狀態：
+2. 到 [Releases](https://github.com/Minidoracat/MinidoracatIMEGuardFor42/releases/latest) 下載 `pz-ime-guard.exe`，放在任何地方執行。第一次會跳 SmartScreen「Windows 已保護您的電腦」（未簽章 exe 的正常提示）：點「其他資訊 → 仍要執行」，或先對 exe 右鍵 → 內容 → 勾「解除封鎖」。它沒有視窗，只在系統匣放一個鍵帽圖示（Windows 11 通常收在「^」隱藏區，第一次啟動會彈一次說明），右下角的小燈代表狀態：
    - 灰：還沒找到 PZ 視窗、PZ 不在前景，或已暫停
    - 綠：PZ 已在英文鍵盤，移動鍵安全
    - 橘：你正在打字，已切回你的輸入法

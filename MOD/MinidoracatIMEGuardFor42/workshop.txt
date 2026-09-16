@@ -19,7 +19,7 @@ description=
 description=[h2]🧰 How to use[/h2]
 description=[olist]
 description=[*] Subscribe and enable this mod.
-description=[*] Download [b]pz-ime-guard.exe[/b] from [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42/releases/latest]GitHub Releases[/url] and run it. No window — just a keycap icon in the system tray (usually under the ^ overflow), with a small lamp in its corner: green = English layout active, orange = typing, your IME restored, grey = PZ not found or paused, red = no English (US) keyboard installed.
+description=[*] Download [b]pz-ime-guard.exe[/b] from [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42/releases/latest]GitHub Releases[/url] and run it. The first launch shows SmartScreen's "Windows protected your PC" (normal for an unsigned exe): click "More info → Run anyway", or right-click the exe → Properties → tick "Unblock" first. No window — just a keycap icon in the system tray (usually under the ^ overflow), with a small lamp in its corner: green = English layout active, orange = typing, your IME restored, grey = PZ not found or paused, red = no English (US) keyboard installed.
 description=[*] Play. If the tool is not running when you enter a world, you get one reminder.
 description=[/olist]
 description=Tip: enable Windows "Let me set a different input method for each app window" so the switch only affects PZ.
