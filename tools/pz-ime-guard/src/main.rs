@@ -1,7 +1,7 @@
 //! pz-ime-guard — MinidoracatIMEGuardFor42 的 Windows 配套常駐工具。
 //!
-//! 每 250 ms 做一件事：PZ 視窗在前景時，依 MOD 寫出的 typing 狀態決定它該用哪個鍵盤配置，
-//! 不對就送 WM_INPUTLANGCHANGEREQUEST，下一輪回讀確認（請求 ≠ 已接受）。
+//! MOD 一寫 state.txt 就醒來（目錄變更通知），否則每 100 ms 輪詢一次：PZ 視窗在前景時，依 typing 狀態
+//! 決定它該用哪個鍵盤配置，不對就送 WM_INPUTLANGCHANGEREQUEST，下一輪回讀確認（請求 ≠ 已接受）。
 //!   沒在打字 → en-US（GLFW 才收得到按鍵）；打字中 → 玩家原本的 IME。
 //! 「原本的 IME」＝最近一次在 PZ 視窗上看到的非英文配置（玩家按 Alt+Shift 切走時順便記住，再切回）。
 //! 不裝鍵盤 hook、不代送按鍵、不改登錄檔、不碰其他視窗。
@@ -22,19 +22,22 @@ use tray_icon::{
 };
 use windows::{
     core::{w, BOOL, HSTRING},
-    Win32::Foundation::{HWND, LPARAM, WPARAM},
+    Win32::Foundation::{HWND, LPARAM, WAIT_OBJECT_0, WPARAM},
     Win32::Globalization::GetUserDefaultUILanguage,
+    Win32::Storage::FileSystem::{
+        FindFirstChangeNotificationW, FindNextChangeNotification, FILE_NOTIFY_CHANGE_LAST_WRITE, FILE_NOTIFY_CHANGE_SIZE,
+    },
     Win32::UI::Input::KeyboardAndMouse::{GetKeyboardLayout, GetKeyboardLayoutList, HKL},
     Win32::UI::WindowsAndMessaging::{
         DispatchMessageW, EnumWindows, GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
-        IsWindowVisible, MessageBoxW, PeekMessageW, PostMessageW, TranslateMessage, MB_ICONINFORMATION, MB_OK, MSG,
-        PM_REMOVE,
+        IsWindowVisible, MessageBoxW, MsgWaitForMultipleObjects, PeekMessageW, PostMessageW, TranslateMessage,
+        MB_ICONINFORMATION, MB_OK, MSG, PM_REMOVE, QS_ALLINPUT,
     },
 };
 
 const WM_INPUTLANGCHANGEREQUEST: u32 = 0x0050;
 const LANG_EN_US: u16 = 0x0409;
-const TICK: Duration = Duration::from_millis(250);
+const TICK: Duration = Duration::from_millis(100); // 輪詢 fallback；state.txt 變更由目錄通知即時喚醒
 const RESEND_AFTER: Duration = Duration::from_millis(500);
 const HEARTBEAT_EVERY: Duration = Duration::from_secs(2);
 
@@ -234,7 +237,7 @@ struct Guard {
     english: Option<HKL>,
     ime: Option<HKL>,
     typing: bool,
-    last_post: Option<Instant>,
+    last_post: Option<(HKL, Instant)>, // 只對「同一目標」限流重送；目標一換立刻送
     last_heartbeat: Option<Instant>,
 }
 
@@ -290,8 +293,9 @@ impl Guard {
         }
         self.read_typing();
         let want = if self.typing { self.ime.unwrap_or(english) } else { english };
-        if current != want && self.last_post.is_none_or(|t| t.elapsed() >= RESEND_AFTER) {
-            self.last_post = Some(Instant::now());
+        let same_target_recently = self.last_post.is_some_and(|(h, t)| h == want && t.elapsed() < RESEND_AFTER);
+        if current != want && !same_target_recently {
+            self.last_post = Some((want, Instant::now()));
             unsafe {
                 let _ = PostMessageW(Some(hwnd), WM_INPUTLANGCHANGEREQUEST, WPARAM(0), LPARAM(want.0 as isize));
             }
@@ -325,6 +329,16 @@ fn main() {
 
     let mut guard = Guard::new();
     first_run_notice(&guard.dir, s);
+    // MOD 一寫 state.txt 就醒來，不用等下一輪；目錄通知拿不到就退回純輪詢
+    let _ = fs::create_dir_all(&guard.dir);
+    let watch = unsafe {
+        FindFirstChangeNotificationW(
+            &HSTRING::from(guard.dir.as_os_str()),
+            false,
+            FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_SIZE,
+        )
+    }
+    .ok();
     loop {
         pump_messages();
         while let Ok(event) = MenuEvent::receiver().try_recv() {
@@ -338,6 +352,14 @@ fn main() {
             let _ = tray.set_icon(Some(icon(status)));
             let _ = tray.set_tooltip(Some(status.text(s)));
         }
-        std::thread::sleep(TICK);
+        match watch {
+            Some(handle) => unsafe {
+                let woke = MsgWaitForMultipleObjects(Some(&[handle]), false, TICK.as_millis() as u32, QS_ALLINPUT);
+                if woke == WAIT_OBJECT_0 {
+                    let _ = FindNextChangeNotification(handle);
+                }
+            },
+            None => std::thread::sleep(TICK),
+        }
     }
 }
