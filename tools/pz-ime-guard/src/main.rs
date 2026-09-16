@@ -30,7 +30,7 @@ use windows::{
     Win32::UI::Input::KeyboardAndMouse::{GetKeyboardLayout, GetKeyboardLayoutList, HKL},
     Win32::UI::WindowsAndMessaging::{
         DispatchMessageW, EnumWindows, GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
-        IsWindowVisible, MessageBoxW, MsgWaitForMultipleObjects, PeekMessageW, PostMessageW, TranslateMessage,
+        IsWindow, IsWindowVisible, MessageBoxW, MsgWaitForMultipleObjects, PeekMessageW, PostMessageW, TranslateMessage,
         MB_ICONINFORMATION, MB_OK, MSG, PM_REMOVE, QS_ALLINPUT,
     },
 };
@@ -234,6 +234,7 @@ fn first_run_notice(dir: &std::path::Path, s: &Strings) {
 
 struct Guard {
     dir: PathBuf,
+    hwnd: Option<HWND>, // 快取；IsWindow 失效才重掃（EnumWindows＋跨程序 GetWindowText 是主要 CPU 來源）
     english: Option<HKL>,
     ime: Option<HKL>,
     typing: bool,
@@ -246,6 +247,7 @@ impl Guard {
         let layouts = installed_layouts();
         Self {
             dir: state_dir(),
+            hwnd: None,
             english: layouts.iter().copied().find(|&h| lang(h) == LANG_EN_US),
             ime: layouts.iter().copied().find(|&h| lang(h) != LANG_EN_US),
             typing: false,
@@ -282,7 +284,16 @@ impl Guard {
             return Status::Paused;
         }
         let Some(english) = self.english else { return Status::NoEnglish };
-        let Some(hwnd) = find_game_window() else { return Status::NoGame };
+        let hwnd = match self.hwnd.filter(|h| unsafe { IsWindow(Some(*h)).as_bool() }) {
+            Some(h) => h,
+            None => match find_game_window() {
+                Some(h) => {
+                    self.hwnd = Some(h);
+                    h
+                }
+                None => return Status::NoGame,
+            },
+        };
         if unsafe { GetForegroundWindow() } != hwnd {
             return Status::Background;
         }
@@ -352,14 +363,16 @@ fn main() {
             let _ = tray.set_icon(Some(icon(status)));
             let _ = tray.set_tooltip(Some(status.text(s)));
         }
+        // PZ 沒開時沒有東西要守，放慢到 500 ms 省得一直掃視窗
+        let wait = if status == Status::NoGame { TICK * 5 } else { TICK };
         match watch {
             Some(handle) => unsafe {
-                let woke = MsgWaitForMultipleObjects(Some(&[handle]), false, TICK.as_millis() as u32, QS_ALLINPUT);
+                let woke = MsgWaitForMultipleObjects(Some(&[handle]), false, wait.as_millis() as u32, QS_ALLINPUT);
                 if woke == WAIT_OBJECT_0 {
                     let _ = FindNextChangeNotification(handle);
                 }
             },
-            None => std::thread::sleep(TICK),
+            None => std::thread::sleep(wait),
         }
     }
 }
