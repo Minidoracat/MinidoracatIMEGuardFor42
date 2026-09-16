@@ -53,6 +53,7 @@ Windows의 「앱 창마다 다른 입력기 설정」을 켜 두면 전환이 P
 [/list]
 
 [h2]☕ 제작자 후원[/h2]
+도움이 되셨다면 이 페이지에 👍, GitHub에 ⭐ 부탁드립니다. 같은 IME 문제로 고생하는 플레이어에게 더 잘 닿습니다.
 이 모드는 앞으로도 무료이며 소스는 GitHub에 공개되어 있습니다. 마음에 드셨다면 커피 한 잔 사 주세요. 후원은 서버와 모드 개발에 쓰입니다.
 [url=https://ko-fi.com/minidoracat][img]https://raw.githubusercontent.com/Minidoracat/workshop-resources/refs/heads/main/badges/badge_kofi.png[/img][/url] [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42][img]https://raw.githubusercontent.com/Minidoracat/workshop-resources/refs/heads/main/badges/badge_github.png[/img][/url]
 

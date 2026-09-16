@@ -53,6 +53,7 @@ Windows の「アプリ ウィンドウごとに異なる入力方式を設定�
 [/list]
 
 [h2]☕ 作者を支援[/h2]
+役に立ったら、このページに 👍 と GitHub に ⭐ をお願いします。同じ IME 問題で困っている人に届きやすくなります。
 この MOD は今後もずっと無料、ソースは GitHub で公開しています。気に入ったらコーヒーを一杯おごってください。支援はサーバーと MOD 開発に使います。
 [url=https://ko-fi.com/minidoracat][img]https://raw.githubusercontent.com/Minidoracat/workshop-resources/refs/heads/main/badges/badge_kofi.png[/img][/url] [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42][img]https://raw.githubusercontent.com/Minidoracat/workshop-resources/refs/heads/main/badges/badge_github.png[/img][/url]
 

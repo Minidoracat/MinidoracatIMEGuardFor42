@@ -53,6 +53,7 @@ Windows 上只要中文／日文／韓文輸入法在組字模式，每個按鍵
 [/list]
 
 [h2]☕ 支持作者[/h2]
+覺得有幫助的話，請在這頁按個 👍 讚、到 GitHub 給個 ⭐ 星星，讓更多被輸入法卡住的玩家找得到它。
 MOD 永遠免費，原始碼公開在 GitHub。喜歡的話可以請我喝杯咖啡，贊助會用在伺服器與 MOD 開發上。
 [url=https://ko-fi.com/minidoracat][img]https://raw.githubusercontent.com/Minidoracat/workshop-resources/refs/heads/main/badges/badge_kofi.png[/img][/url] [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42][img]https://raw.githubusercontent.com/Minidoracat/workshop-resources/refs/heads/main/badges/badge_github.png[/img][/url]
 
