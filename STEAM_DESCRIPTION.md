@@ -28,7 +28,7 @@ Windows 上只要中文／日文／韓文輸入法在組字模式，每個按鍵
 
 [h2]🦀 為什麼用 Rust、為什麼開源[/h2]
 [list]
-[*] 單一 exe 約 450 KB，不用裝 .NET、Java 或任何執行環境，下載即用。
+[*] 單一 exe 約 360 KB，不用裝 .NET、Java 或任何執行環境，下載即用。
 [*] Rust 是記憶體安全的語言，沒有緩衝區溢位那類漏洞；常駐時 CPU 約 0.3% 單核、記憶體不到 2 MB。
 [*] 只呼叫 Windows 公開 API：列舉視窗、讀鍵盤配置、送一個切換訊息。不裝鍵盤 hook、不讀你的按鍵、不連網、不改登錄檔、不碰其他程式。MOD 本身是純 Lua，只寫一個「正在打字」的旗標到你的 Zomboid 資料夾。
 [*] 原始碼公開在 [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42]GitHub[/url]，任何人都能檢視、自行編譯比對。exe 未做程式碼簽章，SmartScreen 可能提示「未知發行者」——不放心就自己 cargo build。

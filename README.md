@@ -26,7 +26,7 @@ Windows 上只要中文／日文／韓文輸入法處於組字模式，按下的
 ## 運作方式
 
 - MOD（純 Lua，零 native）：每 frame 讀一次遊戲自己的「玩家正在打字」旗標，變化時把 `1`／`0` 寫進 `%USERPROFILE%\Zomboid\Lua\MinidoracatIMEGuard\state.txt`。
-- 工具（Rust，單一靜態 exe，約 450 KB）：監看 `state.txt` 所在目錄，MOD 一寫檔就醒來（實測寫檔到 PZ 換好配置 16–39 ms；另每 100 ms 輪詢一次接前景切換與 Alt+Shift 劫持），依旗標決定該用哪個鍵盤配置，不對就對 PZ 視窗送 `WM_INPUTLANGCHANGEREQUEST`，下一輪回讀確認。不裝鍵盤 hook、不代送按鍵、不改登錄檔、不碰其他視窗。每 2 秒寫 `heartbeat.txt` 讓 MOD 知道它活著。
+- 工具（Rust，單一靜態 exe，約 360 KB）：監看 `state.txt` 所在目錄，MOD 一寫檔就醒來（實測寫檔到 PZ 換好配置 16–39 ms；另每 100 ms 輪詢一次接前景切換與 Alt+Shift 劫持），依旗標決定該用哪個鍵盤配置，不對就對 PZ 視窗送 `WM_INPUTLANGCHANGEREQUEST`，下一輪回讀確認。不裝鍵盤 hook、不代送按鍵、不改登錄檔、不碰其他視窗。每 2 秒寫 `heartbeat.txt` 讓 MOD 知道它活著。
 
 退場條件：[LWJGL #946](https://github.com/LWJGL/lwjgl3/issues/946) 的 GLFW IME 修正合併、且 PZ 升到帶該修正的 LWJGL 版本時，這個 MOD 就不再需要。
 

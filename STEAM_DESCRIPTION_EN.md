@@ -28,7 +28,7 @@ Tip: enable Windows "Let me set a different input method for each app window" so
 
 [h2]🦀 Why Rust, why open source[/h2]
 [list]
-[*] One ~450 KB exe. No .NET, Java or any runtime to install — download and run.
+[*] One ~360 KB exe. No .NET, Java or any runtime to install — download and run.
 [*] Rust is memory-safe, so no buffer-overflow class of bugs; idle cost is ~0.3% of one core and under 2 MB RAM.
 [*] Only public Windows APIs: enumerate windows, read the keyboard layout, post one switch message. No keyboard hook, no reading your keystrokes, no network, no registry writes, no other windows touched. The mod itself is pure Lua and only writes a "typing" flag into your Zomboid folder.
 [*] Source on [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42]GitHub[/url] — anyone can audit it or build their own. The exe is not code-signed, so SmartScreen may warn about an unknown publisher; if in doubt, cargo build it yourself.
