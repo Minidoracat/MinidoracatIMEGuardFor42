@@ -31,7 +31,7 @@ Windows の「アプリ ウィンドウごとに異なる入力方式を設定�
 [*] 約 360 KB の単一 exe。.NET や Java などのランタイム不要、ダウンロードして実行するだけ。
 [*] Rust はメモリ安全な言語で、バッファオーバーフロー系の脆弱性がありません。常駐時の負荷は 1 コアの約 0.3%、メモリ 2 MB 未満。
 [*] 使うのは Windows の公開 API のみ：ウィンドウ列挙、キーボード配列の読み取り、切替メッセージの送信。キーボードフック、キー入力の読み取り、ネットワーク通信、レジストリ変更、他ウィンドウへの干渉は一切なし。MOD 本体は純粋な Lua で、「入力中」フラグを Zomboid フォルダに書くだけです。
-[*] ソースは [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42]GitHub[/url] で公開。誰でも監査・自前ビルドできます。exe はコード署名していないため SmartScreen が「不明な発行元」と警告することがあります。不安なら cargo build してください。
+[*] ソースは [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42]GitHub[/url] で公開。誰でも監査・自前ビルドできます。exe は毎回 GitHub Actions のクリーンな環境でビルドし、自動で VirusTotal に送信。SHA-256 とスキャン結果へのリンクは Release ページにあります。exe はコード署名していないため SmartScreen が「不明な発行元」と警告することがあります。不安なら cargo build してください。
 [/list]
 
 [h2]📋 MOD 情報[/h2]
@@ -49,3 +49,6 @@ Windows の「アプリ ウィンドウごとに異なる入力方式を設定�
 
 
 [b]#Minidoracat[/b]
+
+Workshop ID: 
+Mod ID: MinidoracatIMEGuardFor42

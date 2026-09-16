@@ -31,7 +31,7 @@ Windows의 「앱 창마다 다른 입력기 설정」을 켜 두면 전환이 P
 [*] 약 360 KB 단일 exe. .NET, Java 등 런타임 설치 불필요, 내려받아 바로 실행.
 [*] Rust는 메모리 안전 언어로 버퍼 오버플로 계열 취약점이 없습니다. 상주 시 CPU 약 0.3%(코어 1개 기준), 메모리 2 MB 미만.
 [*] Windows 공개 API만 사용: 창 열거, 키보드 배열 읽기, 전환 메시지 1개 전송. 키보드 후킹, 키 입력 읽기, 네트워크, 레지스트리 변경, 다른 창 간섭 없음. 모드 본체는 순수 Lua이며 「입력 중」 플래그를 Zomboid 폴더에 쓰기만 합니다.
-[*] 소스는 [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42]GitHub[/url]에 공개. 누구나 검토하거나 직접 빌드할 수 있습니다. exe는 코드 서명이 없어 SmartScreen이 「알 수 없는 게시자」 경고를 띄울 수 있습니다. 불안하면 직접 cargo build 하세요.
+[*] 소스는 [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42]GitHub[/url]에 공개. 누구나 검토하거나 직접 빌드할 수 있습니다. 모든 exe는 GitHub Actions의 깨끗한 환경에서 빌드되고 자동으로 VirusTotal에 제출되며, SHA-256과 검사 링크는 Release 페이지에 있습니다. exe는 코드 서명이 없어 SmartScreen이 「알 수 없는 게시자」 경고를 띄울 수 있습니다. 불안하면 직접 cargo build 하세요.
 [/list]
 
 [h2]📋 모드 정보[/h2]
@@ -49,3 +49,6 @@ Windows의 「앱 창마다 다른 입력기 설정」을 켜 두면 전환이 P
 
 
 [b]#Minidoracat[/b]
+
+Workshop ID: 
+Mod ID: MinidoracatIMEGuardFor42
