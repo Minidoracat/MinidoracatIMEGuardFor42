@@ -21,7 +21,7 @@ Windows의 「앱 창마다 다른 입력기 설정」을 켜 두면 전환이 P
 
 [h2]🌐 지원 IME 및 언어[/h2]
 [list]
-[*] [b]보호하는 IME:[/b] 한국어(Microsoft 한글 IME 등), 중국어(주음·창힐·병음·RIME…), 일본어(Microsoft IME·Google 일본어 입력…) — 이 셋은 플레이어가 실증했습니다. Windows 내장 베트남어 Telex／VNI, 인도계 Phonetic IME도 같은 원리이지만 게임 내 검증은 아직입니다.
+[*] [b]보호하는 IME:[/b] 한국어(Microsoft 한글 IME 등), 중국어(주음·창힐·병음·RIME…), 일본어(Microsoft IME·Google 일본어 입력…) — 중국어·일본어는 플레이어가 실증했고, 한국어는 Microsoft IME 문서로 같은 동작을 확인했습니다. Windows 내장 베트남어 Telex／VNI, 인도계 Phonetic IME도 같은 원리이지만 게임 내 검증은 아직입니다.
 [*] [b]관여하지 않음:[/b] 영어 각 변형, 러시아어, 독일어, 프랑스어, 태국어 등 일반 키보드 배열 — 원래 이 문제가 없습니다.
 [*] [b]UI 언어:[/b] 도구 툴팁·메뉴·게임 내 안내는 한국어, 번체·간체 중국어, 일본어, 그 외는 영어. Steam 페이지는 영·번·간·일·한.
 [/list]

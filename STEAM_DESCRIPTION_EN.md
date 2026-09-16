@@ -21,7 +21,7 @@ Tip: enable Windows "Let me set a different input method for each app window" so
 
 [h2]🌐 Supported IMEs and languages[/h2]
 [list]
-[*] [b]Guarded IMEs:[/b] Chinese (Bopomofo, Cangjie, Boshiamy, Microsoft/Sogou Pinyin, RIME…), Japanese (Microsoft IME, Google Japanese Input…), Korean — all three confirmed by players. Vietnamese Telex/VNI and Indic Phonetic IMEs built into Windows use the same mechanism but are not yet verified in-game.
+[*] [b]Guarded IMEs:[/b] Chinese (Bopomofo, Cangjie, Boshiamy, Microsoft/Sogou Pinyin, RIME…), Japanese (Microsoft IME, Google Japanese Input…), Korean — Chinese and Japanese confirmed by players, Korean confirmed by Microsoft's IME documentation. Vietnamese Telex/VNI and Indic Phonetic IMEs built into Windows use the same mechanism but are not yet verified in-game.
 [*] [b]Left alone:[/b] plain keyboard layouts (any English variant, Russian, German, French, Thai…) — they never had this problem.
 [*] [b]UI languages:[/b] tool tooltips, menu and in-game notice in Traditional/Simplified Chinese, Japanese, Korean; English otherwise. Steam page in EN/繁/简/日/한.
 [/list]
