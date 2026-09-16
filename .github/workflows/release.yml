@@ -1,0 +1,34 @@
+# 發 Release 時：在乾淨的 Windows runner 編 pz-ime-guard.exe → 附到該 Release → 送 VirusTotal → 把掃描連結寫回 Release 說明。
+# 流程：git tag v<modversion> && git push --tags → gh release create v<modversion> --generate-notes → 本 workflow 接手。
+# 需要 repo secret VT_API_KEY（VirusTotal 帳號 → API key；免費額度 4 次/分、500 次/天）。
+name: release
+on:
+  release:
+    types: [published]
+permissions:
+  contents: write
+jobs:
+  build-scan:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build and test
+        run: |
+          cargo build --release --manifest-path tools/pz-ime-guard/Cargo.toml
+          cargo test --release --manifest-path tools/pz-ime-guard/Cargo.toml
+      - name: SHA-256
+        shell: pwsh
+        run: (Get-FileHash tools/pz-ime-guard/target/release/pz-ime-guard.exe -Algorithm SHA256).Hash + "  pz-ime-guard.exe" | Out-File -Encoding ascii pz-ime-guard.exe.sha256
+      - name: Attach to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            tools/pz-ime-guard/target/release/pz-ime-guard.exe
+            pz-ime-guard.exe.sha256
+      - name: VirusTotal scan
+        uses: crazy-max/ghaction-virustotal@v4
+        with:
+          vt_api_key: ${{ secrets.VT_API_KEY }}
+          files: tools/pz-ime-guard/target/release/pz-ime-guard.exe
+          update_release_body: true
