@@ -42,7 +42,7 @@ jobs:
           ANALYSIS: ${{ steps.vt.outputs.analysis }}
           TAG: ${{ github.ref_name }}
         run: |
-          $links = ($env:ANALYSIS -split ',') | ForEach-Object { $n, $u = $_ -split '=', 2; "- [$(Split-Path $n -Leaf)]($u)" }
+          $links = ($env:ANALYSIS -split ',') | ForEach-Object { $n, $u = $_ -split '=', 2; "- [查看 $(Split-Path $n -Leaf) 的 VirusTotal 報告]($u)" }
           $body = (gh release view $env:TAG --json body -q .body) -join "`n"
-          Set-Content -Path notes.md -Encoding utf8 -Value ($body.TrimEnd() + "`n`n### VirusTotal`n" + ($links -join "`n"))
+          Set-Content -Path notes.md -Encoding utf8 -Value ($body.TrimEnd() + "`n`n### VirusTotal 掃描報告（不是下載連結，exe 請從下方 Assets 取得）`n" + ($links -join "`n"))
           gh release edit $env:TAG --notes-file notes.md
