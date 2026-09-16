@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SignPath artifact configuration for project `pz-ime-guard`（貼到 SignPath 專案的 Artifact configuration）。
+     metadata restriction：productName 固定為專案名（SignPath Foundation 規定）；只有一個 exe，product version 自然一致。 -->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <pe-file path="pz-ime-guard.exe" productName="MinidoracatIMEGuardFor42">
+    <authenticode-sign />
+  </pe-file>
+</artifact-configuration>

@@ -1,15 +1,21 @@
-# 推 v* tag 時：在乾淨的 Windows runner 編 pz-ime-guard.exe → 建／更新同名 Release 並附檔 → 送 VirusTotal → 把掃描連結寫回 Release 說明。
-# 流程：git tag v<modversion> && git push origin v<modversion>，其餘全自動；Release 說明可事後在網頁補寫。
-# 需要 repo secret VT_API_KEY（VirusTotal 帳號 → API key；免費額度 4 次/分、500 次/天）。
+# 推 v* tag 時：在乾淨的 Windows runner 編 pz-ime-guard.exe →（有 SignPath secrets 時）送 SignPath Foundation 簽章 →
+# 建／更新同名 Release 並附檔 → 送 VirusTotal → 把掃描連結寫回 Release 說明。
+# 流程：git tag v<modversion> && git push origin v<modversion>；Release 說明取自 CHANGELOG.md 對應版本節。
+# secrets：VT_API_KEY（VirusTotal）；SIGNPATH_API_TOKEN、SIGNPATH_ORGANIZATION_ID（SignPath 核准後填，缺則跳過簽章、照常出未簽章版）。
+# SignPath 端：project slug `pz-ime-guard`、signing policy `release-signing`；artifact configuration 見 tools/pz-ime-guard/signpath-artifact-configuration.xml。
 name: release
 on:
   push:
     tags: ["v*"]
 permissions:
   contents: write
+  id-token: write
 jobs:
   build-scan:
     runs-on: windows-latest
+    env:
+      SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+      SIGNPATH_ORGANIZATION_ID: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -17,15 +23,37 @@ jobs:
         run: |
           cargo build --release --manifest-path tools/pz-ime-guard/Cargo.toml
           cargo test --release --manifest-path tools/pz-ime-guard/Cargo.toml
-      - name: SHA-256
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item tools/pz-ime-guard/target/release/pz-ime-guard.exe dist/
+      - name: Upload unsigned artifact
+        id: unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: pz-ime-guard-unsigned
+          path: dist/pz-ime-guard.exe
+      - name: Sign with SignPath Foundation
+        if: env.SIGNPATH_API_TOKEN != ''
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ env.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ env.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: pz-ime-guard
+          signing-policy-slug: release-signing
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: dist
+      - name: SHA-256 and signature check
         shell: pwsh
-        run: (Get-FileHash tools/pz-ime-guard/target/release/pz-ime-guard.exe -Algorithm SHA256).Hash + "  pz-ime-guard.exe" | Out-File -Encoding ascii pz-ime-guard.exe.sha256
+        run: |
+          $exe = "dist/pz-ime-guard.exe"
+          (Get-FileHash $exe -Algorithm SHA256).Hash + "  pz-ime-guard.exe" | Out-File -Encoding ascii dist/pz-ime-guard.exe.sha256
+          $sig = Get-AuthenticodeSignature $exe
+          "signature: $($sig.Status) $($sig.SignerCertificate.Subject)"
       - name: Release notes from CHANGELOG
         shell: pwsh
         env:
           TAG: ${{ github.ref_name }}
         run: |
-          # 取 CHANGELOG.md 裡 `## [<modversion>]` 那一節（到下一個 ## 前），找不到就只放版本標題
           $ver = $env:TAG.TrimStart('v')
           $lines = Get-Content CHANGELOG.md -Encoding utf8
           $start = [array]::FindIndex($lines, [Predicate[string]]{ param($l) $l -like "## [$ver]*" })
@@ -33,8 +61,12 @@ jobs:
             $end = $start + 1; while ($end -lt $lines.Count -and $lines[$end] -notlike '## *') { $end++ }
             $section = $lines[$start..($end - 1)]
           }
+          $signed = (Get-AuthenticodeSignature dist/pz-ime-guard.exe).Status -eq 'Valid'
           $section += ""; $section += "Workshop：https://steamcommunity.com/sharedfiles/filedetails/?id=3802890539"
-          $section += "**只訂閱 MOD 不會有效果**，請下載下方 Assets 的 `pz-ime-guard.exe` 執行（未簽章，SmartScreen 出現時按「其他資訊 → 仍要執行」）。"
+          $section += "示範影片：https://youtu.be/5q1bfbm3lgU"
+          $section += "**只訂閱 MOD 不會有效果**，請下載下方 Assets 的 `pz-ime-guard.exe` 執行。"
+          if ($signed) { $section += "exe 已由 SignPath Foundation 簽章（發行者顯示 SignPath Foundation）。" }
+          else { $section += "exe 未簽章，SmartScreen 出現時按「其他資訊 → 仍要執行」。" }
           Set-Content -Path release-notes.md -Encoding utf8 -Value ($section -join "`n")
       - name: Create or update release with assets
         uses: softprops/action-gh-release@v2
@@ -43,14 +75,14 @@ jobs:
           name: ${{ github.ref_name }}
           body_path: release-notes.md
           files: |
-            tools/pz-ime-guard/target/release/pz-ime-guard.exe
-            pz-ime-guard.exe.sha256
+            dist/pz-ime-guard.exe
+            dist/pz-ime-guard.exe.sha256
       - name: VirusTotal scan
         id: vt
         uses: crazy-max/ghaction-virustotal@v4
         with:
           vt_api_key: ${{ secrets.VT_API_KEY }}
-          files: tools/pz-ime-guard/target/release/pz-ime-guard.exe
+          files: dist/pz-ime-guard.exe
       - name: Append VirusTotal link to release notes
         shell: pwsh
         env:
