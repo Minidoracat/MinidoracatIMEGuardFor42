@@ -9,6 +9,11 @@
 *.sh text eol=lf
 mod.info text eol=lf
 
+# Rust 配套工具
+*.rs text eol=lf
+*.toml text eol=lf
+Cargo.lock text eol=lf
+
 # workshop.txt 例外：遊戲內 Workshop 工具上傳時會把整檔回寫成 CRLF。
 # 跟著遊戲的格式走，上傳後就不會每次都跳出「已修改」的假差異（入庫仍正規化為 LF）。
 # 對應地，scripts/gen_workshop_txt.py 也以 CRLF 寫出，兩邊產物一致。
