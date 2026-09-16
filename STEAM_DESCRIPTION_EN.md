@@ -19,11 +19,19 @@ On Windows, whenever a CJK IME is in composition mode every keystroke goes to th
 [/olist]
 Tip: enable Windows "Let me set a different input method for each app window" so the switch only affects PZ.
 
-[h2]🔒 What it does and does not do[/h2]
+[h2]🌐 Supported IMEs and languages[/h2]
 [list]
-[*] The mod is pure Lua: it only writes a "typing" flag into your Zomboid folder. No native code.
-[*] The tool only acts while PZ is the foreground window, using the official Windows message to change that window's layout. No keyboard hook, no key injection, no registry changes, no other windows touched.
-[*] Open source: [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42]GitHub[/url]
+[*] [b]Guarded IMEs:[/b] Chinese (Bopomofo, Cangjie, Boshiamy, Microsoft/Sogou Pinyin, RIME…), Japanese (Microsoft IME, Google Japanese Input…), Korean — all three confirmed by players. Vietnamese Telex/VNI and Indic Phonetic IMEs built into Windows use the same mechanism but are not yet verified in-game.
+[*] [b]Left alone:[/b] plain keyboard layouts (any English variant, Russian, German, French, Thai…) — they never had this problem.
+[*] [b]UI languages:[/b] tool tooltips, menu and in-game notice in Traditional/Simplified Chinese, Japanese, Korean; English otherwise. Steam page in EN/繁/简/日/한.
+[/list]
+
+[h2]🦀 Why Rust, why open source[/h2]
+[list]
+[*] One ~450 KB exe. No .NET, Java or any runtime to install — download and run.
+[*] Rust is memory-safe, so no buffer-overflow class of bugs; idle cost is ~0.3% of one core and under 2 MB RAM.
+[*] Only public Windows APIs: enumerate windows, read the keyboard layout, post one switch message. No keyboard hook, no reading your keystrokes, no network, no registry writes, no other windows touched. The mod itself is pure Lua and only writes a "typing" flag into your Zomboid folder.
+[*] Source on [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42]GitHub[/url] — anyone can audit it or build their own. The exe is not code-signed, so SmartScreen may warn about an unknown publisher; if in doubt, cargo build it yourself.
 [/list]
 
 [h2]📋 Mod info[/h2]

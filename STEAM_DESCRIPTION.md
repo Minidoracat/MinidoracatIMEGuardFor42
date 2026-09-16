@@ -19,11 +19,19 @@ Windows 上只要中文／日文／韓文輸入法在組字模式，每個按鍵
 [/olist]
 建議打開 Windows「讓我為每個應用程式視窗設定不同的輸入法」，切換就只影響 PZ。
 
-[h2]🔒 它做了什麼、沒做什麼[/h2]
+[h2]🌐 支援的輸入法與語言[/h2]
 [list]
-[*] MOD 本身是純 Lua，只寫一個「正在打字」的旗標到你的 Zomboid 資料夾；不含任何 native 程式碼。
-[*] 工具只在 PZ 在前景時，用 Windows 官方訊息切換 PZ 這個視窗的鍵盤配置。不裝鍵盤 hook、不代送按鍵、不改登錄檔、不碰其他程式。
-[*] 原始碼公開：[url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42]GitHub[/url]
+[*] [b]會守護的輸入法：[/b]中文（注音、倉頡、無蝦米、微軟／搜狗拼音、RIME…）、日文（Microsoft IME、Google 日本語入力…）、韓文——三者有玩家實證。越南文 Telex／VNI、印度語系 Phonetic 等 Windows 內建輸入法機制相同，尚未實機驗證。
+[*] [b]不介入：[/b]英文各國變體、俄、德、法、泰等純鍵盤配置——它們本來就沒這問題。
+[*] [b]介面語言：[/b]工具提示、選單與 MOD 內提示有繁中、簡中、日文、韓文，其餘顯示英文；Steam 頁面有英、繁、簡、日、韓。
+[/list]
+
+[h2]🦀 為什麼用 Rust、為什麼開源[/h2]
+[list]
+[*] 單一 exe 約 450 KB，不用裝 .NET、Java 或任何執行環境，下載即用。
+[*] Rust 是記憶體安全的語言，沒有緩衝區溢位那類漏洞；常駐時 CPU 約 0.3% 單核、記憶體不到 2 MB。
+[*] 只呼叫 Windows 公開 API：列舉視窗、讀鍵盤配置、送一個切換訊息。不裝鍵盤 hook、不讀你的按鍵、不連網、不改登錄檔、不碰其他程式。MOD 本身是純 Lua，只寫一個「正在打字」的旗標到你的 Zomboid 資料夾。
+[*] 原始碼公開在 [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42]GitHub[/url]，任何人都能檢視、自行編譯比對。exe 未做程式碼簽章，SmartScreen 可能提示「未知發行者」——不放心就自己 cargo build。
 [/list]
 
 [h2]📋 MOD 資訊[/h2]
