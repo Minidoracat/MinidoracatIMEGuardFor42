@@ -48,3 +48,7 @@ Windows 上只要中文／日文／韓文輸入法處於組字模式，按下的
 ## 作者
 
 Minidoracat — [Discord](https://discord.gg/Gur2V67) | [Twitch](https://www.twitch.tv/minidoracat)
+
+## 授權
+
+MIT，見 [LICENSE](LICENSE)。MOD 與 `pz-ime-guard` 工具皆適用。
