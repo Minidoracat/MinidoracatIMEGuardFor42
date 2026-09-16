@@ -46,3 +46,6 @@ scripts/poster/posters/
 scripts/poster/candidates/
 scripts/poster/variant_*.png
 scripts/poster/*.bak
+
+# 錄影（另外發布，不入庫）
+*.mp4
