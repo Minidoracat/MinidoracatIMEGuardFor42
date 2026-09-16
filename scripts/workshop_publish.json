@@ -1,0 +1,21 @@
+{
+    "app_id": 108600,
+    "published_file_id": null,
+    "owner_steamid64": "76561198033176898",
+    "workshop_root": "MOD/MinidoracatIMEGuardFor42",
+    "mod_info": "MOD/MinidoracatIMEGuardFor42/Contents/mods/MinidoracatIMEGuardFor42/42/mod.info",
+    "preview_gif": null,
+    "changelog": "STEAM_CHANGELOG.md",
+    "titles": {
+        "english": "Minidoracat IME Guard for B42",
+        "tchinese": "[B42] Minidoracat 輸入法守衛 IME Guard",
+        "schinese": "[B42] Minidoracat 输入法守卫 IME Guard",
+        "japanese": "[B42] Minidoracat IME ガード IME Guard"
+    },
+    "descriptions": {
+        "english": "STEAM_DESCRIPTION_EN.md",
+        "tchinese": "STEAM_DESCRIPTION.md",
+        "schinese": "STEAM_DESCRIPTION.md",
+        "japanese": "STEAM_DESCRIPTION_JP.md"
+    }
+}
