@@ -20,12 +20,28 @@ jobs:
       - name: SHA-256
         shell: pwsh
         run: (Get-FileHash tools/pz-ime-guard/target/release/pz-ime-guard.exe -Algorithm SHA256).Hash + "  pz-ime-guard.exe" | Out-File -Encoding ascii pz-ime-guard.exe.sha256
+      - name: Release notes from CHANGELOG
+        shell: pwsh
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          # 取 CHANGELOG.md 裡 `## [<modversion>]` 那一節（到下一個 ## 前），找不到就只放版本標題
+          $ver = $env:TAG.TrimStart('v')
+          $lines = Get-Content CHANGELOG.md -Encoding utf8
+          $start = [array]::FindIndex($lines, [Predicate[string]]{ param($l) $l -like "## [$ver]*" })
+          if ($start -lt 0) { $section = @("## $ver") } else {
+            $end = $start + 1; while ($end -lt $lines.Count -and $lines[$end] -notlike '## *') { $end++ }
+            $section = $lines[$start..($end - 1)]
+          }
+          $section += ""; $section += "Workshop：https://steamcommunity.com/sharedfiles/filedetails/?id=3802890539"
+          $section += "**只訂閱 MOD 不會有效果**，請下載下方 Assets 的 `pz-ime-guard.exe` 執行（未簽章，SmartScreen 出現時按「其他資訊 → 仍要執行」）。"
+          Set-Content -Path release-notes.md -Encoding utf8 -Value ($section -join "`n")
       - name: Create or update release with assets
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
-          generate_release_notes: false
+          body_path: release-notes.md
           files: |
             tools/pz-ime-guard/target/release/pz-ime-guard.exe
             pz-ime-guard.exe.sha256
