@@ -21,8 +21,9 @@ use tray_icon::{
     Icon, TrayIcon, TrayIconBuilder,
 };
 use windows::{
-    core::{w, BOOL},
+    core::{w, BOOL, HSTRING},
     Win32::Foundation::{HWND, LPARAM, WPARAM},
+    Win32::Globalization::GetUserDefaultUILanguage,
     Win32::UI::Input::KeyboardAndMouse::{GetKeyboardLayout, GetKeyboardLayoutList, HKL},
     Win32::UI::WindowsAndMessaging::{
         DispatchMessageW, EnumWindows, GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
@@ -104,15 +105,92 @@ impl Status {
             Status::Typing => [240, 160, 30],
         }
     }
-    fn text(self) -> &'static str {
-        match self {
-            Status::Paused => "pz-ime-guard: paused",
-            Status::NoGame => "pz-ime-guard: waiting for Project Zomboid",
-            Status::Background => "pz-ime-guard: PZ not in foreground",
-            Status::NoEnglish => "pz-ime-guard: no English (US) keyboard installed",
-            Status::Guarding => "pz-ime-guard: English layout active (movement keys safe)",
-            Status::Typing => "pz-ime-guard: typing, your IME restored",
-        }
+    fn text(self, s: &Strings) -> String {
+        let body = match self {
+            Status::Paused => s.paused,
+            Status::NoGame => s.no_game,
+            Status::Background => s.background,
+            Status::NoEnglish => s.no_english,
+            Status::Guarding => s.guarding,
+            Status::Typing => s.typing,
+        };
+        format!("pz-ime-guard: {body}")
+    }
+}
+
+/// 介面文字：依 Windows 顯示語言挑一組（繁中／簡中／日文，其餘英文），與 MOD 的四語翻譯槽一致。
+struct Strings {
+    paused: &'static str,
+    no_game: &'static str,
+    background: &'static str,
+    no_english: &'static str,
+    guarding: &'static str,
+    typing: &'static str,
+    menu_pause: &'static str,
+    menu_quit: &'static str,
+    notice: &'static str,
+}
+
+const EN: Strings = Strings {
+    paused: "paused",
+    no_game: "waiting for Project Zomboid",
+    background: "PZ not in foreground",
+    no_english: "no English (US) keyboard installed",
+    guarding: "English layout active (movement keys safe)",
+    typing: "typing, your IME restored",
+    menu_pause: "Pause",
+    menu_quit: "Quit",
+    notice: "pz-ime-guard is now running in the system tray (it may be hidden under the ^ arrow).\n\
+             The lamp on the keycap icon: green = English layout, orange = typing (your IME restored), grey = waiting for Project Zomboid.\n\
+             Right-click the icon to pause or quit. This notice is shown only once.",
+};
+const TW: Strings = Strings {
+    paused: "已暫停",
+    no_game: "等待 Project Zomboid 啟動",
+    background: "PZ 不在前景",
+    no_english: "系統未安裝英文（美國）鍵盤",
+    guarding: "英文鍵盤中，移動鍵安全",
+    typing: "打字中，已切回你的輸入法",
+    menu_pause: "暫停",
+    menu_quit: "結束",
+    notice: "pz-ime-guard 已在系統匣運作（可能收在 ^ 隱藏區）。\n\
+             鍵帽圖示上的小燈：綠＝英文鍵盤、橘＝打字中已切回你的輸入法、灰＝等待 Project Zomboid。\n\
+             右鍵圖示可暫停或結束。此訊息只顯示一次。",
+};
+const CN: Strings = Strings {
+    paused: "已暂停",
+    no_game: "等待 Project Zomboid 启动",
+    background: "PZ 不在前台",
+    no_english: "系统未安装英语（美国）键盘",
+    guarding: "英文键盘中，移动键安全",
+    typing: "打字中，已切回你的输入法",
+    menu_pause: "暂停",
+    menu_quit: "退出",
+    notice: "pz-ime-guard 已在系统托盘运行（可能收在 ^ 隐藏区）。\n\
+             键帽图标上的小灯：绿＝英文键盘、橙＝打字中已切回你的输入法、灰＝等待 Project Zomboid。\n\
+             右键图标可暂停或退出。此消息只显示一次。",
+};
+const JP: Strings = Strings {
+    paused: "一時停止中",
+    no_game: "Project Zomboid の起動を待機中",
+    background: "PZ が前面にありません",
+    no_english: "英語（米国）キーボードが未インストール",
+    guarding: "英語配列中、移動キーは安全",
+    typing: "入力中、IME を復帰済み",
+    menu_pause: "一時停止",
+    menu_quit: "終了",
+    notice: "pz-ime-guard はタスクトレイで動作中です（^ の中に隠れている場合があります）。\n\
+             キーキャップアイコンのランプ：緑＝英語配列、橙＝入力中（IME 復帰済み）、灰＝Project Zomboid を待機中。\n\
+             アイコンを右クリックで一時停止・終了。この案内は初回のみ表示されます。",
+};
+
+fn strings() -> &'static Strings {
+    let id = unsafe { GetUserDefaultUILanguage() };
+    match id {
+        0x0404 | 0x0C04 | 0x1404 => &TW, // 台灣／香港／澳門
+        0x0804 | 0x1004 => &CN,          // 中國／新加坡
+        _ if id & 0x3ff == 0x11 => &JP,
+        _ => &EN,
     }
 }
 
@@ -139,7 +217,7 @@ fn icon(status: Status) -> Icon {
 }
 
 /// 第一次啟動才彈：Windows 11 預設把新圖示收進「^」隱藏區，不講玩家不知道它跑起來了。
-fn first_run_notice(dir: &std::path::Path) {
+fn first_run_notice(dir: &std::path::Path, s: &Strings) {
     let marker = dir.join("first-run-done.txt");
     if marker.exists() {
         return;
@@ -147,17 +225,7 @@ fn first_run_notice(dir: &std::path::Path) {
     let _ = fs::create_dir_all(dir);
     let _ = fs::write(&marker, "1");
     unsafe {
-        MessageBoxW(
-            None,
-            w!("pz-ime-guard is now running in the system tray (it may be hidden under the ^ arrow).\n\
-                Green = English layout, orange = typing (your IME restored), grey = waiting for Project Zomboid.\n\
-                Right-click the icon to pause or quit. This notice is shown only once.\n\n\
-                pz-ime-guard 已在系統匣運作（可能收在 ^ 隱藏區）。\n\
-                綠＝英文鍵盤、橘＝打字中已切回你的輸入法、灰＝等待 Project Zomboid。\n\
-                右鍵圖示可暫停或結束。此訊息只顯示一次。"),
-            w!("pz-ime-guard"),
-            MB_OK | MB_ICONINFORMATION,
-        );
+        MessageBoxW(None, &HSTRING::from(s.notice), w!("pz-ime-guard"), MB_OK | MB_ICONINFORMATION);
     }
 }
 
@@ -243,19 +311,20 @@ fn pump_messages() {
 }
 
 fn main() {
-    let pause = CheckMenuItem::new("Pause", true, false, None);
-    let quit = MenuItem::new("Quit", true, None);
+    let s = strings();
+    let pause = CheckMenuItem::new(s.menu_pause, true, false, None);
+    let quit = MenuItem::new(s.menu_quit, true, None);
     let menu = Menu::with_items(&[&pause, &quit]).expect("tray menu");
     let mut status = Status::NoGame;
     let tray: TrayIcon = TrayIconBuilder::new()
         .with_menu(Box::new(menu))
-        .with_tooltip(status.text())
+        .with_tooltip(status.text(s))
         .with_icon(icon(status))
         .build()
         .expect("tray icon");
 
     let mut guard = Guard::new();
-    first_run_notice(&guard.dir);
+    first_run_notice(&guard.dir, s);
     loop {
         pump_messages();
         while let Ok(event) = MenuEvent::receiver().try_recv() {
@@ -267,7 +336,7 @@ fn main() {
         if next != status {
             status = next;
             let _ = tray.set_icon(Some(icon(status)));
-            let _ = tray.set_tooltip(Some(status.text()));
+            let _ = tray.set_tooltip(Some(status.text(s)));
         }
         std::thread::sleep(TICK);
     }
