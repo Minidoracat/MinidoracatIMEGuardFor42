@@ -27,7 +27,7 @@ import urllib.request
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STEAM_API_DLL = os.environ.get("PUBLISH_STEAM_API_DLL",
                                r"D:\SteamLibrary\steamapps\common\ProjectZomboid\steam_api64.dll")
-LANG_NAMES = {"english": "英文", "tchinese": "繁中", "schinese": "簡中", "japanese": "日文"}
+LANG_NAMES = {"english": "英文", "tchinese": "繁中", "schinese": "簡中", "japanese": "日文", "koreana": "韓文"}
 MODES = ("content", "preview", "description", "screenshots", "all")
 SCREENSHOT_DIR = os.path.join("docs", "screenshots", "steam")
 SCREENSHOT_LANGS = ("en", "zh")  # Workshop 詳情頁預覽圖順序：英文在前、中文在後

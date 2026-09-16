@@ -45,19 +45,25 @@ fn lang(hkl: HKL) -> u16 {
     (hkl.0 as usize & 0xffff) as u16
 }
 
-/// 會把按鍵攔成 VK_PROCESSKEY 的是 CJK 輸入法：中文 0x04、日文 0x11、韓文 0x12（primary language）。
-/// 其他配置（各種英文、俄、德、法…）GLFW 都收得到，一律視為安全、不介入。
+/// 會把按鍵攔成 VK_PROCESSKEY 的是「輸入法（IME）」而不是「鍵盤配置」。Windows 內建 IME 的語系（primary language）：
+/// 中文 0x04、日文 0x11、韓文 0x12、越南文 0x2A（Telex／VNI）、印度語系 Phonetic（印地 0x39、孟加拉 0x45、
+/// 旁遮普 0x46、古吉拉特 0x47、奧里亞 0x48、泰米爾 0x49、泰盧固 0x4A、卡納達 0x4B、馬拉雅拉姆 0x4C、馬拉地 0x4E）、
+/// 切羅基 0x5C、阿姆哈拉 0x5E、提格利尼亞 0x73。其他配置 GLFW 都收得到，一律視為安全、不介入。
+/// 中日韓有 PZ 玩家實證；其餘依微軟文件同為 IME [未實機驗證]。
 /// ponytail: ImmIsIME 對已安裝的 en-US 也回 true（實測），不能拿來判。
-fn is_cjk_ime(hkl: HKL) -> bool {
-    matches!(lang(hkl) & 0x3ff, 0x04 | 0x11 | 0x12)
+fn is_ime_lang(hkl: HKL) -> bool {
+    matches!(
+        lang(hkl) & 0x3ff,
+        0x04 | 0x11 | 0x12 | 0x2A | 0x39 | 0x45 | 0x46 | 0x47 | 0x48 | 0x49 | 0x4A | 0x4B | 0x4C | 0x4E | 0x5C | 0x5E | 0x73
+    )
 }
 
-/// 玩遊戲時要切去的配置：en-US 優先，沒有就任一英文，再沒有就任一非 CJK 配置。
+/// 玩遊戲時要切去的配置：en-US 優先，沒有就任一英文，再沒有就任一非 IME 配置。
 fn pick_safe_layout(layouts: &[HKL]) -> Option<HKL> {
     let by = |f: &dyn Fn(HKL) -> bool| layouts.iter().copied().find(|&h| f(h));
     by(&|h| lang(h) == LANG_EN_US)
         .or_else(|| by(&|h| lang(h) & 0x3ff == 0x09))
-        .or_else(|| by(&|h| !is_cjk_ime(h)))
+        .or_else(|| by(&|h| !is_ime_lang(h)))
 }
 
 fn installed_layouts() -> Vec<HKL> {
@@ -201,6 +207,20 @@ const JP: Strings = Strings {
              キーキャップアイコンのランプ：緑＝英語配列、橙＝入力中（IME 復帰済み）、灰＝Project Zomboid を待機中。\n\
              アイコンを右クリックで一時停止・終了。この案内は初回のみ表示されます。",
 };
+// 韓文由非母語者撰寫，待母語者校對
+const KO: Strings = Strings {
+    paused: "일시 정지됨",
+    no_game: "Project Zomboid 실행 대기 중",
+    background: "PZ가 전면에 있지 않음",
+    no_english: "IME가 아닌 키보드가 없습니다. Windows 설정에서 영어(미국)를 추가하세요",
+    guarding: "영어 배열 활성, 이동 키 안전",
+    typing: "입력 중, IME 복원됨",
+    menu_pause: "일시 정지",
+    menu_quit: "종료",
+    notice: "pz-ime-guard가 시스템 트레이에서 실행 중입니다(^ 안에 숨겨져 있을 수 있음).\n\
+             키캡 아이콘의 램프: 초록＝영어 배열, 주황＝입력 중(IME 복원됨), 회색＝Project Zomboid 대기 중.\n\
+             아이콘을 우클릭하면 일시 정지／종료할 수 있습니다. 이 안내는 처음 한 번만 표시됩니다.",
+};
 
 fn strings() -> &'static Strings {
     let id = unsafe { GetUserDefaultUILanguage() };
@@ -208,6 +228,7 @@ fn strings() -> &'static Strings {
         0x0404 | 0x0C04 | 0x1404 => &TW, // 台灣／香港／澳門
         0x0804 | 0x1004 => &CN,          // 中國／新加坡
         _ if id & 0x3ff == 0x11 => &JP,
+        _ if id & 0x3ff == 0x12 => &KO,
         _ => &EN,
     }
 }
@@ -264,7 +285,7 @@ impl Guard {
             dir: state_dir(),
             hwnd: None,
             safe: pick_safe_layout(&layouts),
-            ime: layouts.iter().copied().find(|&h| is_cjk_ime(h)),
+            ime: layouts.iter().copied().find(|&h| is_ime_lang(h)),
             typing: false,
             last_post: None,
             last_heartbeat: None,
@@ -314,7 +335,7 @@ impl Guard {
         }
         let thread = unsafe { GetWindowThreadProcessId(hwnd, None) };
         let current = unsafe { GetKeyboardLayout(thread) };
-        if is_cjk_ime(current) {
+        if is_ime_lang(current) {
             self.ime = Some(current);
         }
         self.read_typing();
@@ -322,7 +343,7 @@ impl Guard {
         let want = match (self.typing, self.ime) {
             (true, Some(ime)) => ime,
             (true, None) => current,
-            (false, _) if is_cjk_ime(current) => safe,
+            (false, _) if is_ime_lang(current) => safe,
             (false, _) => current,
         };
         let same_target_recently = self.last_post.is_some_and(|(h, t)| h == want && t.elapsed() < RESEND_AFTER);
@@ -407,17 +428,17 @@ mod tests {
     }
 
     #[test]
-    fn cjk_languages_are_ime_everything_else_is_safe() {
-        for v in [0x0404_0404, 0xE020_0404, 0x0804_0804, 0xE001_0411, 0x0412_0412] {
-            assert!(is_cjk_ime(hkl(v)), "{v:#x} should be IME");
+    fn ime_languages_are_ime_everything_else_is_safe() {
+        for v in [0x0404_0404, 0xE020_0404, 0x0804_0804, 0xE001_0411, 0x0412_0412, 0x042A_042A, 0x0439_0439] {
+            assert!(is_ime_lang(hkl(v)), "{v:#x} should be IME");
         }
-        for v in [0x0409_0409, 0x0809_0809, 0x0C09_0C09, 0x0407_0407, 0x0419_0419] {
-            assert!(!is_cjk_ime(hkl(v)), "{v:#x} should be safe");
+        for v in [0x0409_0409, 0x0809_0809, 0x0C09_0C09, 0x0407_0407, 0x0419_0419, 0x041E_041E] {
+            assert!(!is_ime_lang(hkl(v)), "{v:#x} should be safe (Thai is a plain layout)");
         }
     }
 
     #[test]
-    fn safe_layout_prefers_en_us_then_any_english_then_any_non_cjk() {
+    fn safe_layout_prefers_en_us_then_any_english_then_any_non_ime() {
         let us = hkl(0x0409_0409);
         let gb = hkl(0x0809_0809);
         let de = hkl(0x0407_0407);

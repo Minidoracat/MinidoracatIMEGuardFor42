@@ -10,12 +10,14 @@
         "english": "Minidoracat IME Guard for B42",
         "tchinese": "[B42] Minidoracat 輸入法守衛 IME Guard",
         "schinese": "[B42] Minidoracat 输入法守卫 IME Guard",
-        "japanese": "[B42] Minidoracat IME ガード IME Guard"
+        "japanese": "[B42] Minidoracat IME ガード IME Guard",
+        "koreana": "[B42] Minidoracat IME 가드 IME Guard"
     },
     "descriptions": {
         "english": "STEAM_DESCRIPTION_EN.md",
         "tchinese": "STEAM_DESCRIPTION.md",
         "schinese": "STEAM_DESCRIPTION.md",
-        "japanese": "STEAM_DESCRIPTION_JP.md"
+        "japanese": "STEAM_DESCRIPTION_JP.md",
+        "koreana": "STEAM_DESCRIPTION_KO.md"
     }
 }
