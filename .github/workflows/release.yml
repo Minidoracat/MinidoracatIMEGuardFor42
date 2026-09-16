@@ -43,5 +43,6 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           $links = ($env:ANALYSIS -split ',') | ForEach-Object { $n, $u = $_ -split '=', 2; "- [$(Split-Path $n -Leaf)]($u)" }
-          $body = gh release view $env:TAG --json body -q .body
-          gh release edit $env:TAG --notes ($body.TrimEnd() + "`n`n### VirusTotal`n" + ($links -join "`n"))
+          $body = (gh release view $env:TAG --json body -q .body) -join "`n"
+          Set-Content -Path notes.md -Encoding utf8 -Value ($body.TrimEnd() + "`n`n### VirusTotal`n" + ($links -join "`n"))
+          gh release edit $env:TAG --notes-file notes.md
