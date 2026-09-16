@@ -45,6 +45,21 @@ fn lang(hkl: HKL) -> u16 {
     (hkl.0 as usize & 0xffff) as u16
 }
 
+/// 會把按鍵攔成 VK_PROCESSKEY 的是 CJK 輸入法：中文 0x04、日文 0x11、韓文 0x12（primary language）。
+/// 其他配置（各種英文、俄、德、法…）GLFW 都收得到，一律視為安全、不介入。
+/// ponytail: ImmIsIME 對已安裝的 en-US 也回 true（實測），不能拿來判。
+fn is_cjk_ime(hkl: HKL) -> bool {
+    matches!(lang(hkl) & 0x3ff, 0x04 | 0x11 | 0x12)
+}
+
+/// 玩遊戲時要切去的配置：en-US 優先，沒有就任一英文，再沒有就任一非 CJK 配置。
+fn pick_safe_layout(layouts: &[HKL]) -> Option<HKL> {
+    let by = |f: &dyn Fn(HKL) -> bool| layouts.iter().copied().find(|&h| f(h));
+    by(&|h| lang(h) == LANG_EN_US)
+        .or_else(|| by(&|h| lang(h) & 0x3ff == 0x09))
+        .or_else(|| by(&|h| !is_cjk_ime(h)))
+}
+
 fn installed_layouts() -> Vec<HKL> {
     unsafe {
         let count = GetKeyboardLayoutList(None).max(0) as usize;
@@ -138,8 +153,8 @@ const EN: Strings = Strings {
     paused: "paused",
     no_game: "waiting for Project Zomboid",
     background: "PZ not in foreground",
-    no_english: "no English (US) keyboard installed",
-    guarding: "English layout active (movement keys safe)",
+    no_english: "no non-IME keyboard installed — add English (US) in Windows settings",
+    guarding: "safe layout active (movement keys work)",
     typing: "typing, your IME restored",
     menu_pause: "Pause",
     menu_quit: "Quit",
@@ -151,7 +166,7 @@ const TW: Strings = Strings {
     paused: "已暫停",
     no_game: "等待 Project Zomboid 啟動",
     background: "PZ 不在前景",
-    no_english: "系統未安裝英文（美國）鍵盤",
+    no_english: "系統只有輸入法鍵盤，請到 Windows 設定新增英文（美國）鍵盤",
     guarding: "英文鍵盤中，移動鍵安全",
     typing: "打字中，已切回你的輸入法",
     menu_pause: "暫停",
@@ -164,7 +179,7 @@ const CN: Strings = Strings {
     paused: "已暂停",
     no_game: "等待 Project Zomboid 启动",
     background: "PZ 不在前台",
-    no_english: "系统未安装英语（美国）键盘",
+    no_english: "系统只有输入法键盘，请到 Windows 设置新增英语（美国）键盘",
     guarding: "英文键盘中，移动键安全",
     typing: "打字中，已切回你的输入法",
     menu_pause: "暂停",
@@ -177,7 +192,7 @@ const JP: Strings = Strings {
     paused: "一時停止中",
     no_game: "Project Zomboid の起動を待機中",
     background: "PZ が前面にありません",
-    no_english: "英語（米国）キーボードが未インストール",
+    no_english: "IME 以外のキーボードがありません。Windows 設定で英語（米国）を追加してください",
     guarding: "英語配列中、移動キーは安全",
     typing: "入力中、IME を復帰済み",
     menu_pause: "一時停止",
@@ -235,7 +250,7 @@ fn first_run_notice(dir: &std::path::Path, s: &Strings) {
 struct Guard {
     dir: PathBuf,
     hwnd: Option<HWND>, // 快取；IsWindow 失效才重掃（EnumWindows＋跨程序 GetWindowText 是主要 CPU 來源）
-    english: Option<HKL>,
+    safe: Option<HKL>,
     ime: Option<HKL>,
     typing: bool,
     last_post: Option<(HKL, Instant)>, // 只對「同一目標」限流重送；目標一換立刻送
@@ -248,8 +263,8 @@ impl Guard {
         Self {
             dir: state_dir(),
             hwnd: None,
-            english: layouts.iter().copied().find(|&h| lang(h) == LANG_EN_US),
-            ime: layouts.iter().copied().find(|&h| lang(h) != LANG_EN_US),
+            safe: pick_safe_layout(&layouts),
+            ime: layouts.iter().copied().find(|&h| is_cjk_ime(h)),
             typing: false,
             last_post: None,
             last_heartbeat: None,
@@ -283,7 +298,7 @@ impl Guard {
         if paused {
             return Status::Paused;
         }
-        let Some(english) = self.english else { return Status::NoEnglish };
+        let Some(safe) = self.safe else { return Status::NoEnglish };
         let hwnd = match self.hwnd.filter(|h| unsafe { IsWindow(Some(*h)).as_bool() }) {
             Some(h) => h,
             None => match find_game_window() {
@@ -299,11 +314,17 @@ impl Guard {
         }
         let thread = unsafe { GetWindowThreadProcessId(hwnd, None) };
         let current = unsafe { GetKeyboardLayout(thread) };
-        if lang(current) != LANG_EN_US {
+        if is_cjk_ime(current) {
             self.ime = Some(current);
         }
         self.read_typing();
-        let want = if self.typing { self.ime.unwrap_or(english) } else { english };
+        // 打字 → 玩家的 IME（沒看過就不動）；沒打字 → 只有目前是 CJK IME 才切到安全配置，其他配置本來就安全
+        let want = match (self.typing, self.ime) {
+            (true, Some(ime)) => ime,
+            (true, None) => current,
+            (false, _) if is_cjk_ime(current) => safe,
+            (false, _) => current,
+        };
         let same_target_recently = self.last_post.is_some_and(|(h, t)| h == want && t.elapsed() < RESEND_AFTER);
         if current != want && !same_target_recently {
             self.last_post = Some((want, Instant::now()));
@@ -374,5 +395,36 @@ fn main() {
             },
             None => std::thread::sleep(wait),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn hkl(v: usize) -> HKL {
+        HKL(v as *mut core::ffi::c_void)
+    }
+
+    #[test]
+    fn cjk_languages_are_ime_everything_else_is_safe() {
+        for v in [0x0404_0404, 0xE020_0404, 0x0804_0804, 0xE001_0411, 0x0412_0412] {
+            assert!(is_cjk_ime(hkl(v)), "{v:#x} should be IME");
+        }
+        for v in [0x0409_0409, 0x0809_0809, 0x0C09_0C09, 0x0407_0407, 0x0419_0419] {
+            assert!(!is_cjk_ime(hkl(v)), "{v:#x} should be safe");
+        }
+    }
+
+    #[test]
+    fn safe_layout_prefers_en_us_then_any_english_then_any_non_cjk() {
+        let us = hkl(0x0409_0409);
+        let gb = hkl(0x0809_0809);
+        let de = hkl(0x0407_0407);
+        let tw = hkl(0x0404_0404);
+        assert_eq!(pick_safe_layout(&[tw, gb, us]), Some(us));
+        assert_eq!(pick_safe_layout(&[tw, de, gb]), Some(gb));
+        assert_eq!(pick_safe_layout(&[tw, de]), Some(de));
+        assert_eq!(pick_safe_layout(&[tw, hkl(0xE001_0411)]), None);
     }
 }

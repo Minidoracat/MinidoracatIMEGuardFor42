@@ -30,6 +30,8 @@ Windows 上只要中文／日文／韓文輸入法處於組字模式，按下的
 
 退場條件：[LWJGL #946](https://github.com/LWJGL/lwjgl3/issues/946) 的 GLFW IME 修正合併、且 PZ 升到帶該修正的 LWJGL 版本時，這個 MOD 就不再需要。
 
+**支援哪些輸入法**：工具只看 Windows 的鍵盤配置語言，不認輸入法品牌。中文（注音、無蝦米、倉頡、微軟／搜狗拼音、RIME…）、日文（Microsoft IME、Google 日本語入力…）、韓文一律視為會攔按鍵的 IME；英文各國變體、俄、德、法等配置視為安全、完全不介入。打字時切回的是「你在 PZ 視窗上最後用過的那個輸入法」，不是系統預設——裝了兩種想換另一種，在聊天框 Win+Space 切一次就記住。系統裡完全沒有非 IME 配置（只裝了注音、沒裝英文）時工具無事可做，圖示變紅，請到 Windows 設定新增「英文（美國）」。
+
 ## 開發
 
 - Lua：`MOD/MinidoracatIMEGuardFor42/Contents/mods/MinidoracatIMEGuardFor42/42/media/lua/client/IMEGuard/`
