@@ -49,6 +49,19 @@ Windows 上只要中文／日文／韓文輸入法處於組字模式，按下的
 
 版本號格式：`{PZ 版本}-{mod 版本}`（例 `42.20.4-0.1.0`），詳見 [CHANGELOG.md](CHANGELOG.md)。工具版本獨立（`tools/pz-ime-guard/Cargo.toml`）。
 
+## 移除
+
+工具沒有安裝程式：右鍵系統匣圖示「結束」，刪掉 `pz-ime-guard.exe` 即可。它只在 `%USERPROFILE%\Zomboid\Lua\MinidoracatIMEGuard\` 留下 `state.txt`／`heartbeat.txt`／`settings.txt`／`first-run-done.txt` 四個小檔，可一併刪除；不寫登錄檔、不建開機啟動。MOD 在 Workshop 取消訂閱即可。
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
+- **Committers and reviewers**: [Minidoracat](https://github.com/Minidoracat)（repo owner；本專案目前為單人維護，所有變更由 owner 提交）
+- **Approvers**: [Minidoracat](https://github.com/Minidoracat)（repo owner）
+- **Privacy policy**: This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. The only network access is the optional update check (GitHub Releases API, on by default, can be disabled from the tray menu), which sends no user data.
+- 簽章的 exe 一律由 GitHub Actions 從本 repo 的 tag 建置（`.github/workflows/release.yml`），每個 Release 都須人工核准簽章；SHA-256 與 VirusTotal 報告附在 Release 頁。
+
 ## 作者
 
 Minidoracat — [Discord](https://discord.gg/Gur2V67) | [Twitch](https://www.twitch.tv/minidoracat)
