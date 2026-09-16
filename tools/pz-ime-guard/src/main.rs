@@ -360,15 +360,12 @@ impl Guard {
             self.rescan_layouts();
             return Status::NoEnglish;
         };
-        let hwnd = match self.hwnd.filter(|h| unsafe { IsWindow(Some(*h)).as_bool() }) {
-            Some(h) => h,
-            None => match find_game_window() {
-                Some(h) => {
-                    self.hwnd = Some(h);
-                    h
-                }
-                None => return Status::NoGame,
-            },
+        let cached = self.hwnd.filter(|h| unsafe { IsWindow(Some(*h)).as_bool() });
+        let Some(hwnd) = cached.or_else(|| {
+            self.hwnd = find_game_window();
+            self.hwnd
+        }) else {
+            return Status::NoGame;
         };
         if unsafe { GetForegroundWindow() } != hwnd {
             return Status::Background;
@@ -425,8 +422,8 @@ fn main() {
     if guard.safe.is_none() {
         no_safe_layout_notice(s);
     }
-    // MOD 一寫 state.txt 就醒來，不用等下一輪；目錄通知拿不到就退回純輪詢
-    let _ = fs::create_dir_all(&guard.dir);
+    // MOD 一寫 state.txt 就醒來，不用等下一輪；目錄通知拿不到就退回純輪詢（heartbeat 順便把目錄建好）
+    guard.heartbeat();
     let watch = unsafe {
         FindFirstChangeNotificationW(
             &HSTRING::from(guard.dir.as_os_str()),
