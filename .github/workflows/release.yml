@@ -25,7 +25,7 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
-          generate_release_notes: true
+          generate_release_notes: false
           files: |
             tools/pz-ime-guard/target/release/pz-ime-guard.exe
             pz-ime-guard.exe.sha256
