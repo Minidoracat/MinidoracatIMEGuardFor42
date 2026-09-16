@@ -13,6 +13,9 @@ Keeps Project Zomboid on an English keyboard layout while you play, and switches
 [h2]🧟 Why your IME gets you killed[/h2]
 On Windows, whenever a CJK IME is in composition mode every keystroke goes to the IME first and PZ simply drops it — WASD, Shift to run, Space, E, all dead. Worse, PZ's own controls are Windows' layout hotkeys (Shift+Alt, Ctrl+Space), so you get switched back mid-game. The developers have said this will not be handled in-game. This mod exists for that.
 
+[h2]🎬 35-second demo[/h2]
+[url=https://youtu.be/5q1bfbm3lgU]https://youtu.be/5q1bfbm3lgU[/url] (download → run → type Chinese in chat → close chat and walk)
+
 [h2]🧰 How to use[/h2]
 [olist]
 [*] Subscribe and enable this mod.
