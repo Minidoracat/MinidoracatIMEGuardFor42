@@ -28,10 +28,11 @@ use windows::{
         FindFirstChangeNotificationW, FindNextChangeNotification, FILE_NOTIFY_CHANGE_LAST_WRITE, FILE_NOTIFY_CHANGE_SIZE,
     },
     Win32::UI::Input::KeyboardAndMouse::{GetKeyboardLayout, GetKeyboardLayoutList, HKL},
+    Win32::UI::Shell::ShellExecuteW,
     Win32::UI::WindowsAndMessaging::{
         DispatchMessageW, EnumWindows, GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
         IsWindow, IsWindowVisible, MessageBoxW, MsgWaitForMultipleObjects, PeekMessageW, PostMessageW, TranslateMessage,
-        MB_ICONINFORMATION, MB_OK, MSG, PM_REMOVE, QS_ALLINPUT,
+        IDYES, MB_ICONINFORMATION, MB_ICONWARNING, MB_OK, MB_YESNO, MSG, PM_REMOVE, QS_ALLINPUT, SW_SHOWNORMAL,
     },
 };
 
@@ -150,6 +151,7 @@ struct Strings {
     no_english: &'static str,
     guarding: &'static str,
     typing: &'static str,
+    no_safe_notice: &'static str,
     menu_pause: &'static str,
     menu_quit: &'static str,
     notice: &'static str,
@@ -167,6 +169,9 @@ const EN: Strings = Strings {
     notice: "pz-ime-guard is now running in the system tray (it may be hidden under the ^ arrow).\n\
              The lamp on the keycap icon: green = English layout, orange = typing (your IME restored), grey = waiting for Project Zomboid.\n\
              Right-click the icon to pause or quit. This notice is shown only once.",
+    no_safe_notice: "No English (US) — or any other non-IME — keyboard is installed, so pz-ime-guard has nothing to switch to and cannot protect your keys.\n\n\
+                     Windows Settings → Time & language → Language & region → Add a language → English (United States), or add the US keyboard under your current language's options.\n\n\
+                     Open Settings now?",
 };
 const TW: Strings = Strings {
     paused: "已暫停",
@@ -180,6 +185,9 @@ const TW: Strings = Strings {
     notice: "pz-ime-guard 已在系統匣運作（可能收在 ^ 隱藏區）。\n\
              鍵帽圖示上的小燈：綠＝英文鍵盤、橘＝打字中已切回你的輸入法、灰＝等待 Project Zomboid。\n\
              右鍵圖示可暫停或結束。此訊息只顯示一次。",
+    no_safe_notice: "系統沒有安裝英文（美國）或其他非輸入法的鍵盤，pz-ime-guard 沒有可以切過去的配置，無法保護你的按鍵。\n\n\
+                     請到 Windows 設定 → 時間與語言 → 語言與地區 → 新增語言 → English (United States)，或在「中文（台灣）」的語言選項裡新增「美式鍵盤」。\n\n\
+                     要現在開啟設定嗎？",
 };
 const CN: Strings = Strings {
     paused: "已暂停",
@@ -193,6 +201,9 @@ const CN: Strings = Strings {
     notice: "pz-ime-guard 已在系统托盘运行（可能收在 ^ 隐藏区）。\n\
              键帽图标上的小灯：绿＝英文键盘、橙＝打字中已切回你的输入法、灰＝等待 Project Zomboid。\n\
              右键图标可暂停或退出。此消息只显示一次。",
+    no_safe_notice: "系统没有安装英语（美国）或其他非输入法的键盘，pz-ime-guard 没有可以切换过去的布局，无法保护你的按键。\n\n\
+                     请到 Windows 设置 → 时间和语言 → 语言和区域 → 添加语言 → English (United States)，或在「中文（简体，中国）」的语言选项里添加「美式键盘」。\n\n\
+                     现在打开设置吗？",
 };
 const JP: Strings = Strings {
     paused: "一時停止中",
@@ -206,6 +217,9 @@ const JP: Strings = Strings {
     notice: "pz-ime-guard はタスクトレイで動作中です（^ の中に隠れている場合があります）。\n\
              キーキャップアイコンのランプ：緑＝英語配列、橙＝入力中（IME 復帰済み）、灰＝Project Zomboid を待機中。\n\
              アイコンを右クリックで一時停止・終了。この案内は初回のみ表示されます。",
+    no_safe_notice: "英語（米国）などの IME 以外のキーボードがインストールされていないため、pz-ime-guard には切り替え先がなく、キーを保護できません。\n\n\
+                     Windows 設定 → 時刻と言語 → 言語と地域 → 言語の追加 → English (United States)、または「日本語」の言語オプションで「英語キーボード」を追加してください。\n\n\
+                     今すぐ設定を開きますか？",
 };
 // 韓文由非母語者撰寫，待母語者校對
 const KO: Strings = Strings {
@@ -220,6 +234,9 @@ const KO: Strings = Strings {
     notice: "pz-ime-guard가 시스템 트레이에서 실행 중입니다(^ 안에 숨겨져 있을 수 있음).\n\
              키캡 아이콘의 램프: 초록＝영어 배열, 주황＝입력 중(IME 복원됨), 회색＝Project Zomboid 대기 중.\n\
              아이콘을 우클릭하면 일시 정지／종료할 수 있습니다. 이 안내는 처음 한 번만 표시됩니다.",
+    no_safe_notice: "영어(미국) 등 IME가 아닌 키보드가 설치되어 있지 않아 pz-ime-guard가 전환할 배열이 없고 키를 보호할 수 없습니다.\n\n\
+                     Windows 설정 → 시간 및 언어 → 언어 및 지역 → 언어 추가 → English (United States), 또는 「한국어」 언어 옵션에서 「영어 키보드」를 추가하세요.\n\n\
+                     지금 설정을 열까요?",
 };
 
 fn strings() -> &'static Strings {
@@ -255,6 +272,16 @@ fn icon(status: Status) -> Icon {
     Icon::from_rgba(rgba, size, size).expect("32x32 rgba icon")
 }
 
+/// 沒有任何非 IME 配置時每次啟動都彈：這是阻礙性錯誤，「是」直接開 Windows 語言設定頁。
+fn no_safe_layout_notice(s: &Strings) {
+    let answer = unsafe { MessageBoxW(None, &HSTRING::from(s.no_safe_notice), w!("pz-ime-guard"), MB_YESNO | MB_ICONWARNING) };
+    if answer == IDYES {
+        unsafe {
+            ShellExecuteW(None, w!("open"), w!("ms-settings:regionlanguage"), None, None, SW_SHOWNORMAL);
+        }
+    }
+}
+
 /// 第一次啟動才彈：Windows 11 預設把新圖示收進「^」隱藏區，不講玩家不知道它跑起來了。
 fn first_run_notice(dir: &std::path::Path, s: &Strings) {
     let marker = dir.join("first-run-done.txt");
@@ -280,15 +307,25 @@ struct Guard {
 
 impl Guard {
     fn new() -> Self {
-        let layouts = installed_layouts();
-        Self {
+        let mut guard = Self {
             dir: state_dir(),
             hwnd: None,
-            safe: pick_safe_layout(&layouts),
-            ime: layouts.iter().copied().find(|&h| is_ime_lang(h)),
+            safe: None,
+            ime: None,
             typing: false,
             last_post: None,
             last_heartbeat: None,
+        };
+        guard.rescan_layouts();
+        guard
+    }
+
+    /// 重讀系統鍵盤清單。啟動時一次；紅燈狀態下每輪再讀，玩家照提示新增英文鍵盤後不用重啟。
+    fn rescan_layouts(&mut self) {
+        let layouts = installed_layouts();
+        self.safe = pick_safe_layout(&layouts);
+        if self.ime.is_none() {
+            self.ime = layouts.iter().copied().find(|&h| is_ime_lang(h));
         }
     }
 
@@ -319,7 +356,10 @@ impl Guard {
         if paused {
             return Status::Paused;
         }
-        let Some(safe) = self.safe else { return Status::NoEnglish };
+        let Some(safe) = self.safe else {
+            self.rescan_layouts();
+            return Status::NoEnglish;
+        };
         let hwnd = match self.hwnd.filter(|h| unsafe { IsWindow(Some(*h)).as_bool() }) {
             Some(h) => h,
             None => match find_game_window() {
@@ -382,6 +422,9 @@ fn main() {
 
     let mut guard = Guard::new();
     first_run_notice(&guard.dir, s);
+    if guard.safe.is_none() {
+        no_safe_layout_notice(s);
+    }
     // MOD 一寫 state.txt 就醒來，不用等下一輪；目錄通知拿不到就退回純輪詢
     let _ = fs::create_dir_all(&guard.dir);
     let watch = unsafe {
