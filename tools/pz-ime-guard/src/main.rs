@@ -13,21 +13,24 @@
 
 use std::{
     fs,
-    path::PathBuf,
+    os::windows::process::CommandExt,
+    path::{Path, PathBuf},
+    sync::mpsc,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use tray_icon::{
-    menu::{CheckMenuItem, Menu, MenuEvent, MenuItem},
+    menu::{CheckMenuItem, Menu, MenuEvent, MenuItem, PredefinedMenuItem},
     Icon, TrayIcon, TrayIconBuilder,
 };
 use windows::{
     core::{w, BOOL, HSTRING},
-    Win32::Foundation::{HWND, LPARAM, WAIT_OBJECT_0, WPARAM},
+    Win32::Foundation::{GetLastError, ERROR_ALREADY_EXISTS, HWND, LPARAM, WAIT_OBJECT_0, WPARAM},
     Win32::Globalization::GetUserDefaultUILanguage,
     Win32::Storage::FileSystem::{
         FindFirstChangeNotificationW, FindNextChangeNotification, FILE_NOTIFY_CHANGE_LAST_WRITE, FILE_NOTIFY_CHANGE_SIZE,
     },
     Win32::UI::Input::KeyboardAndMouse::{GetKeyboardLayout, GetKeyboardLayoutList, HKL},
+    Win32::System::Threading::CreateMutexW,
     Win32::UI::Shell::ShellExecuteW,
     Win32::UI::WindowsAndMessaging::{
         DispatchMessageW, EnumWindows, GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
@@ -152,8 +155,13 @@ struct Strings {
     guarding: &'static str,
     typing: &'static str,
     no_safe_notice: &'static str,
+    already_running: &'static str,
     menu_pause: &'static str,
     menu_quit: &'static str,
+    menu_workshop: &'static str,
+    menu_github: &'static str,
+    menu_check_updates: &'static str,
+    update_available: &'static str,
     notice: &'static str,
 }
 
@@ -165,6 +173,12 @@ const EN: Strings = Strings {
     guarding: "safe layout active (movement keys work)",
     typing: "typing, your IME restored",
     menu_pause: "Pause",
+    menu_workshop: "Workshop page",
+    menu_github: "GitHub (source / issues)",
+    menu_check_updates: "Check for updates (on start, daily)",
+    update_available: "pz-ime-guard {tag} is available (you have {current}).
+
+Open the download page?",
     menu_quit: "Quit",
     notice: "pz-ime-guard is now running in the system tray (it may be hidden under the ^ arrow).\n\
              The lamp on the keycap icon: green = English layout, orange = typing (your IME restored), grey = waiting for Project Zomboid.\n\
@@ -172,6 +186,7 @@ const EN: Strings = Strings {
     no_safe_notice: "No English (US) — or any other non-IME — keyboard is installed, so pz-ime-guard has nothing to switch to and cannot protect your keys.\n\n\
                      Windows Settings → Time & language → Language & region → Add a language → English (United States), or add the US keyboard under your current language's options.\n\n\
                      Open Settings now?",
+    already_running: "pz-ime-guard is already running — check the system tray (^ overflow). This copy will exit.",
 };
 const TW: Strings = Strings {
     paused: "已暫停",
@@ -181,6 +196,12 @@ const TW: Strings = Strings {
     guarding: "英文鍵盤中，移動鍵安全",
     typing: "打字中，已切回你的輸入法",
     menu_pause: "暫停",
+    menu_workshop: "Workshop 頁面",
+    menu_github: "GitHub（原始碼／回報問題）",
+    menu_check_updates: "自動檢查更新（啟動時與每日）",
+    update_available: "有新版 pz-ime-guard {tag}（目前 {current}）。
+
+要開啟下載頁嗎？",
     menu_quit: "結束",
     notice: "pz-ime-guard 已在系統匣運作（可能收在 ^ 隱藏區）。\n\
              鍵帽圖示上的小燈：綠＝英文鍵盤、橘＝打字中已切回你的輸入法、灰＝等待 Project Zomboid。\n\
@@ -188,6 +209,7 @@ const TW: Strings = Strings {
     no_safe_notice: "系統沒有安裝英文（美國）或其他非輸入法的鍵盤，pz-ime-guard 沒有可以切過去的配置，無法保護你的按鍵。\n\n\
                      請到 Windows 設定 → 時間與語言 → 語言與地區 → 新增語言 → English (United States)，或在「中文（台灣）」的語言選項裡新增「美式鍵盤」。\n\n\
                      要現在開啟設定嗎？",
+    already_running: "pz-ime-guard 已經在執行中，請看系統匣（^ 隱藏區）。這個副本會直接結束。",
 };
 const CN: Strings = Strings {
     paused: "已暂停",
@@ -197,6 +219,12 @@ const CN: Strings = Strings {
     guarding: "英文键盘中，移动键安全",
     typing: "打字中，已切回你的输入法",
     menu_pause: "暂停",
+    menu_workshop: "创意工坊页面",
+    menu_github: "GitHub（源码／反馈问题）",
+    menu_check_updates: "自动检查更新（启动时与每日）",
+    update_available: "有新版 pz-ime-guard {tag}（当前 {current}）。
+
+要打开下载页吗？",
     menu_quit: "退出",
     notice: "pz-ime-guard 已在系统托盘运行（可能收在 ^ 隐藏区）。\n\
              键帽图标上的小灯：绿＝英文键盘、橙＝打字中已切回你的输入法、灰＝等待 Project Zomboid。\n\
@@ -204,6 +232,7 @@ const CN: Strings = Strings {
     no_safe_notice: "系统没有安装英语（美国）或其他非输入法的键盘，pz-ime-guard 没有可以切换过去的布局，无法保护你的按键。\n\n\
                      请到 Windows 设置 → 时间和语言 → 语言和区域 → 添加语言 → English (United States)，或在「中文（简体，中国）」的语言选项里添加「美式键盘」。\n\n\
                      现在打开设置吗？",
+    already_running: "pz-ime-guard 已经在运行中，请看系统托盘（^ 隐藏区）。此副本将直接退出。",
 };
 const JP: Strings = Strings {
     paused: "一時停止中",
@@ -213,6 +242,12 @@ const JP: Strings = Strings {
     guarding: "英語配列中、移動キーは安全",
     typing: "入力中、IME を復帰済み",
     menu_pause: "一時停止",
+    menu_workshop: "Workshop ページ",
+    menu_github: "GitHub（ソース／不具合報告）",
+    menu_check_updates: "更新を自動確認（起動時と毎日）",
+    update_available: "新しい pz-ime-guard {tag} があります（現在 {current}）。
+
+ダウンロードページを開きますか？",
     menu_quit: "終了",
     notice: "pz-ime-guard はタスクトレイで動作中です（^ の中に隠れている場合があります）。\n\
              キーキャップアイコンのランプ：緑＝英語配列、橙＝入力中（IME 復帰済み）、灰＝Project Zomboid を待機中。\n\
@@ -220,6 +255,7 @@ const JP: Strings = Strings {
     no_safe_notice: "英語（米国）などの IME 以外のキーボードがインストールされていないため、pz-ime-guard には切り替え先がなく、キーを保護できません。\n\n\
                      Windows 設定 → 時刻と言語 → 言語と地域 → 言語の追加 → English (United States)、または「日本語」の言語オプションで「英語キーボード」を追加してください。\n\n\
                      今すぐ設定を開きますか？",
+    already_running: "pz-ime-guard はすでに動作中です。タスクトレイ（^ の中）を確認してください。このコピーは終了します。",
 };
 // 韓文由非母語者撰寫，待母語者校對
 const KO: Strings = Strings {
@@ -230,6 +266,12 @@ const KO: Strings = Strings {
     guarding: "영어 배열 활성, 이동 키 안전",
     typing: "입력 중, IME 복원됨",
     menu_pause: "일시 정지",
+    menu_workshop: "Workshop 페이지",
+    menu_github: "GitHub(소스／문제 제보)",
+    menu_check_updates: "업데이트 자동 확인(시작 시·매일)",
+    update_available: "새 버전 pz-ime-guard {tag}가 있습니다(현재 {current}).
+
+다운로드 페이지를 열까요?",
     menu_quit: "종료",
     notice: "pz-ime-guard가 시스템 트레이에서 실행 중입니다(^ 안에 숨겨져 있을 수 있음).\n\
              키캡 아이콘의 램프: 초록＝영어 배열, 주황＝입력 중(IME 복원됨), 회색＝Project Zomboid 대기 중.\n\
@@ -237,6 +279,7 @@ const KO: Strings = Strings {
     no_safe_notice: "영어(미국) 등 IME가 아닌 키보드가 설치되어 있지 않아 pz-ime-guard가 전환할 배열이 없고 키를 보호할 수 없습니다.\n\n\
                      Windows 설정 → 시간 및 언어 → 언어 및 지역 → 언어 추가 → English (United States), 또는 「한국어」 언어 옵션에서 「영어 키보드」를 추가하세요.\n\n\
                      지금 설정을 열까요?",
+    already_running: "pz-ime-guard가 이미 실행 중입니다. 시스템 트레이(^ 안)를 확인하세요. 이 사본은 종료됩니다.",
 };
 
 fn strings() -> &'static Strings {
@@ -283,7 +326,7 @@ fn no_safe_layout_notice(s: &Strings) {
 }
 
 /// 第一次啟動才彈：Windows 11 預設把新圖示收進「^」隱藏區，不講玩家不知道它跑起來了。
-fn first_run_notice(dir: &std::path::Path, s: &Strings) {
+fn first_run_notice(dir: &Path, s: &Strings) {
     let marker = dir.join("first-run-done.txt");
     if marker.exists() {
         return;
@@ -404,11 +447,61 @@ fn pump_messages() {
     }
 }
 
+const RELEASES_API: &str = "https://api.github.com/repos/Minidoracat/MinidoracatIMEGuardFor42/releases/latest";
+const RELEASES_PAGE: &str = "https://github.com/Minidoracat/MinidoracatIMEGuardFor42/releases/latest";
+const UPDATE_EVERY: Duration = Duration::from_secs(24 * 60 * 60);
+
+/// settings.txt 只有一行 `check_updates=0|1`；缺檔＝開（預設檢查）。
+fn check_updates_enabled(dir: &Path) -> bool {
+    fs::read_to_string(dir.join("settings.txt")).map(|s| !s.contains("check_updates=0")).unwrap_or(true)
+}
+
+fn set_check_updates(dir: &Path, on: bool) {
+    let _ = fs::create_dir_all(dir);
+    let _ = fs::write(dir.join("settings.txt"), format!("check_updates={}\n", if on { 1 } else { 0 }));
+}
+
+/// 背景執行緒用 Windows 內建 curl 抓最新 Release 的 tag（`v42.20.4-0.1.1`），只回傳比本版新的版本字串。
+/// ponytail: 不加 HTTP 依賴；curl 缺席或離線就當沒新版。版本比較只看 tag 最後一段（工具版號，與 Cargo 同步 bump）。
+fn spawn_update_check(tx: mpsc::Sender<String>) {
+    std::thread::spawn(move || {
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let out = std::process::Command::new("curl")
+            .args(["-sL", "--max-time", "15", "-H", "User-Agent: pz-ime-guard", RELEASES_API])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+        let Ok(out) = out else { return };
+        let body = String::from_utf8_lossy(&out.stdout);
+        let Some(tag) = body.split("\"tag_name\":\"").nth(1).and_then(|r| r.split('"').next()) else { return };
+        let latest = tag.rsplit('-').next().unwrap_or(tag);
+        if is_newer(latest, env!("CARGO_PKG_VERSION")) {
+            let _ = tx.send(tag.to_string());
+        }
+    });
+}
+
+fn is_newer(candidate: &str, current: &str) -> bool {
+    let parse = |v: &str| -> Vec<u32> { v.split('.').map(|p| p.parse().unwrap_or(0)).collect() };
+    parse(candidate) > parse(current)
+}
+
 fn main() {
     let s = strings();
+    // 單一實例：named mutex 由 OS 在程序結束時釋放；第二份直接提示後離開
+    let _single = unsafe { CreateMutexW(None, false, w!("Local\\pz-ime-guard-single-instance")) };
+    if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
+        unsafe { MessageBoxW(None, &HSTRING::from(s.already_running), w!("pz-ime-guard"), MB_OK | MB_ICONINFORMATION) };
+        return;
+    }
+    let about = MenuItem::new(format!("pz-ime-guard {} — MinidoracatIMEGuardFor42", env!("CARGO_PKG_VERSION")), false, None);
+    let workshop = MenuItem::new(s.menu_workshop, true, None);
+    let github = MenuItem::new(s.menu_github, true, None);
     let pause = CheckMenuItem::new(s.menu_pause, true, false, None);
     let quit = MenuItem::new(s.menu_quit, true, None);
-    let menu = Menu::with_items(&[&pause, &quit]).expect("tray menu");
+    let state_dir = state_dir();
+    let updates = CheckMenuItem::new(s.menu_check_updates, true, check_updates_enabled(&state_dir), None);
+    let menu = Menu::with_items(&[&about, &workshop, &github, &updates, &PredefinedMenuItem::separator(), &pause, &quit])
+        .expect("tray menu");
     let mut status = Status::NoGame;
     let tray: TrayIcon = TrayIconBuilder::new()
         .with_menu(Box::new(menu))
@@ -432,11 +525,38 @@ fn main() {
         )
     }
     .ok();
+    let (update_tx, update_rx) = mpsc::channel();
+    let mut last_update_check: Option<Instant> = None;
     loop {
         pump_messages();
         while let Ok(event) = MenuEvent::receiver().try_recv() {
-            if event.id() == quit.id() {
+            let id = event.id();
+            if id == quit.id() {
                 return;
+            }
+            let url = if id == workshop.id() {
+                Some(w!("https://steamcommunity.com/sharedfiles/filedetails/?id=3802890539"))
+            } else if id == github.id() {
+                Some(w!("https://github.com/Minidoracat/MinidoracatIMEGuardFor42"))
+            } else {
+                None
+            };
+            if let Some(url) = url {
+                unsafe { ShellExecuteW(None, w!("open"), url, None, None, SW_SHOWNORMAL) };
+            }
+            if id == updates.id() {
+                set_check_updates(&state_dir, updates.is_checked());
+            }
+        }
+        if updates.is_checked() && last_update_check.is_none_or(|t| t.elapsed() >= UPDATE_EVERY) {
+            last_update_check = Some(Instant::now());
+            spawn_update_check(update_tx.clone());
+        }
+        if let Ok(tag) = update_rx.try_recv() {
+            let text = s.update_available.replace("{tag}", &tag).replace("{current}", env!("CARGO_PKG_VERSION"));
+            let answer = unsafe { MessageBoxW(None, &HSTRING::from(text), w!("pz-ime-guard"), MB_YESNO | MB_ICONINFORMATION) };
+            if answer == IDYES {
+                unsafe { ShellExecuteW(None, w!("open"), &HSTRING::from(RELEASES_PAGE), None, None, SW_SHOWNORMAL) };
             }
         }
         let next = guard.tick(pause.is_checked());
@@ -487,5 +607,19 @@ mod tests {
         assert_eq!(pick_safe_layout(&[tw, de, gb]), Some(gb));
         assert_eq!(pick_safe_layout(&[tw, de]), Some(de));
         assert_eq!(pick_safe_layout(&[tw, hkl(0xE001_0411)]), None);
+    }
+}
+
+#[cfg(test)]
+mod update_tests {
+    use super::is_newer;
+
+    #[test]
+    fn version_compare_is_numeric_not_lexical() {
+        assert!(is_newer("0.1.1", "0.1.0"));
+        assert!(is_newer("0.10.0", "0.9.9"));
+        assert!(!is_newer("0.1.0", "0.1.0"));
+        assert!(!is_newer("0.0.9", "0.1.0"));
+        assert!(is_newer("v42.20.4-0.2.0".rsplit('-').next().unwrap(), "0.1.1"));
     }
 }
