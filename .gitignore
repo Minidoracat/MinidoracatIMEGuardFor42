@@ -49,3 +49,4 @@ scripts/poster/*.bak
 
 # 錄影（另外發布，不入庫）
 *.mp4
+docs/video/
