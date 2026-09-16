@@ -5,6 +5,8 @@
 
 [b]⚠️ Two-part mod: subscribing alone does nothing. You also need the small Windows companion tool (see below).[/b]
 
+[b]🎮 Works in singleplayer and multiplayer.[/b] SP: movement keys stop dying to the IME, and text boxes (search, naming) still switch back. [b]MP: the server must list this mod[/b] (PZ only loads mods on the server's list); it does nothing server-side and touches no saves.
+
 [h2]✨ What it is[/h2]
 Keeps Project Zomboid on an English keyboard layout while you play, and switches back to your own IME the moment you start typing (chat, search, naming). Works with Bopomofo, Pinyin, Japanese, Korean — any Windows IME.
 
@@ -38,7 +40,7 @@ Tip: enable Windows "Let me set a different input method for each app window" so
 [list]
 [*] [b]Mod ID:[/b] MinidoracatIMEGuardFor42
 [*] [b]Version:[/b] Build 42.20.4+
-[*] [b]Singleplayer / Multiplayer:[/b] both. SP: movement keys stop dying to the IME, and text boxes (search, naming) still switch back. MP: the server must list this mod (PZ only loads mods on the server's list); it does nothing server-side
+[*] [b]Singleplayer / Multiplayer:[/b] both (MP: server must list the mod, see top)
 [*] [b]Platform:[/b] tool is Windows-only; macOS/Linux do not have this problem
 [/list]
 
