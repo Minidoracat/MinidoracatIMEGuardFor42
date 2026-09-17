@@ -1,6 +1,6 @@
 [package]
 name = "pz-ime-guard"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 description = "Companion tray tool for MinidoracatIMEGuardFor42: keeps Project Zomboid on an English keyboard layout while playing and restores your IME while typing"
 license = "MIT"

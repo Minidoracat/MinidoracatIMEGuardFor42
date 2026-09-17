@@ -4,7 +4,8 @@
 //! 決定它該用哪個鍵盤配置，不對就送 WM_INPUTLANGCHANGEREQUEST，下一輪回讀確認（請求 ≠ 已接受）。
 //!   沒在打字 → en-US（GLFW 才收得到按鍵）；打字中 → 玩家原本的 IME。
 //! 「原本的 IME」＝最近一次在 PZ 視窗上看到的非英文配置（玩家按 Alt+Shift 切走時順便記住，再切回）。
-//! 不裝鍵盤 hook、不代送按鍵、不改登錄檔、不碰其他視窗。
+//! 離開 PZ（alt-tab 或關遊戲）那一刻，若新前景被我們的 en-US 帶走了，就把 PZ 進前景前桌面用的配置還回去（可關）。
+//! 不裝鍵盤 hook、不代送按鍵、不改登錄檔；除了上述還原之外不碰其他視窗。
 //!
 //! 檔案協定（%USERPROFILE%\Zomboid\Lua\MinidoracatIMEGuard\）：
 //!   state.txt      MOD 寫，"1"＝打字中、"0"＝沒有；空檔／其他內容視為未變
@@ -161,6 +162,7 @@ struct Strings {
     menu_workshop: &'static str,
     menu_github: &'static str,
     menu_check_updates: &'static str,
+    menu_restore_desktop: &'static str,
     update_available: &'static str,
     notice: &'static str,
 }
@@ -176,6 +178,7 @@ const EN: Strings = Strings {
     menu_workshop: "Workshop page",
     menu_github: "GitHub (source / issues)",
     menu_check_updates: "Check for updates (on start, daily)",
+    menu_restore_desktop: "Restore my IME when leaving the game",
     update_available: "pz-ime-guard {tag} is available (you have {current}).
 
 Open the download page?",
@@ -199,6 +202,7 @@ const TW: Strings = Strings {
     menu_workshop: "Workshop 頁面",
     menu_github: "GitHub（原始碼／回報問題）",
     menu_check_updates: "自動檢查更新（啟動時與每日）",
+    menu_restore_desktop: "切出遊戲時還原桌面的輸入法",
     update_available: "有新版 pz-ime-guard {tag}（目前 {current}）。
 
 要開啟下載頁嗎？",
@@ -222,6 +226,7 @@ const CN: Strings = Strings {
     menu_workshop: "创意工坊页面",
     menu_github: "GitHub（源码／反馈问题）",
     menu_check_updates: "自动检查更新（启动时与每日）",
+    menu_restore_desktop: "切出游戏时还原桌面的输入法",
     update_available: "有新版 pz-ime-guard {tag}（当前 {current}）。
 
 要打开下载页吗？",
@@ -245,6 +250,7 @@ const JP: Strings = Strings {
     menu_workshop: "Workshop ページ",
     menu_github: "GitHub（ソース／不具合報告）",
     menu_check_updates: "更新を自動確認（起動時と毎日）",
+    menu_restore_desktop: "ゲームから離れたら元の IME に戻す",
     update_available: "新しい pz-ime-guard {tag} があります（現在 {current}）。
 
 ダウンロードページを開きますか？",
@@ -269,6 +275,7 @@ const KO: Strings = Strings {
     menu_workshop: "Workshop 페이지",
     menu_github: "GitHub(소스／문제 제보)",
     menu_check_updates: "업데이트 자동 확인(시작 시·매일)",
+    menu_restore_desktop: "게임에서 벗어나면 원래 IME로 복원",
     update_available: "새 버전 pz-ime-guard {tag}가 있습니다(현재 {current}).
 
 다운로드 페이지를 열까요?",
@@ -346,6 +353,8 @@ struct Guard {
     typing: bool,
     last_post: Option<(HKL, Instant)>, // 只對「同一目標」限流重送；目標一換立刻送
     last_heartbeat: Option<Instant>,
+    was_fg: bool,          // 上一輪 PZ 是否在前景；true→false 的那一輪還原桌面配置
+    desktop: Option<HKL>,  // PZ 不在前景時前景視窗用的配置＝玩家桌面本來的輸入法
 }
 
 impl Guard {
@@ -358,6 +367,8 @@ impl Guard {
             typing: false,
             last_post: None,
             last_heartbeat: None,
+            was_fg: false,
+            desktop: None,
         };
         guard.rescan_layouts();
         guard
@@ -394,7 +405,7 @@ impl Guard {
         }
     }
 
-    fn tick(&mut self, paused: bool) -> Status {
+    fn tick(&mut self, paused: bool, restore: bool) -> Status {
         self.heartbeat();
         if paused {
             return Status::Paused;
@@ -404,15 +415,17 @@ impl Guard {
             return Status::NoEnglish;
         };
         let cached = self.hwnd.filter(|h| unsafe { IsWindow(Some(*h)).as_bool() });
-        let Some(hwnd) = cached.or_else(|| {
+        let hwnd = cached.or_else(|| {
             self.hwnd = find_game_window();
             self.hwnd
-        }) else {
-            return Status::NoGame;
-        };
-        if unsafe { GetForegroundWindow() } != hwnd {
-            return Status::Background;
+        });
+        let fg = unsafe { GetForegroundWindow() };
+        if hwnd != Some(fg) {
+            self.leave_game(fg, safe, restore);
+            return if hwnd.is_some() { Status::Background } else { Status::NoGame };
         }
+        let hwnd = fg;
+        self.was_fg = true;
         let thread = unsafe { GetWindowThreadProcessId(hwnd, None) };
         let current = unsafe { GetKeyboardLayout(thread) };
         if is_ime_lang(current) {
@@ -435,6 +448,24 @@ impl Guard {
         }
         if self.typing { Status::Typing } else { Status::Guarding }
     }
+    /// PZ 不在前景：平時記住桌面用的配置；剛從 PZ 切出去（或 PZ 關掉）的那一輪，若新前景被我們的 en-US 帶走了，
+    /// 就把桌面原本的配置還回去。只撤自己的效果：桌面本來就英文、或玩家開了「每個視窗不同輸入法」都不會動。
+    fn leave_game(&mut self, fg: HWND, safe: HKL, restore: bool) {
+        if fg.0.is_null() {
+            return;
+        }
+        let current = unsafe { GetKeyboardLayout(GetWindowThreadProcessId(fg, None)) };
+        if !self.was_fg {
+            self.desktop = Some(current);
+            return;
+        }
+        self.was_fg = false;
+        if let Some(desktop) = self.desktop.filter(|&d| restore && d != safe && current == safe) {
+            unsafe {
+                let _ = PostMessageW(Some(fg), WM_INPUTLANGCHANGEREQUEST, WPARAM(0), LPARAM(desktop.0 as isize));
+            }
+        }
+    }
 }
 
 fn pump_messages() {
@@ -451,14 +482,15 @@ const RELEASES_API: &str = "https://api.github.com/repos/Minidoracat/Minidoracat
 const RELEASES_PAGE: &str = "https://github.com/Minidoracat/MinidoracatIMEGuardFor42/releases/latest";
 const UPDATE_EVERY: Duration = Duration::from_secs(24 * 60 * 60);
 
-/// settings.txt 只有一行 `check_updates=0|1`；缺檔＝開（預設檢查）。
-fn check_updates_enabled(dir: &Path) -> bool {
-    fs::read_to_string(dir.join("settings.txt")).map(|s| !s.contains("check_updates=0")).unwrap_or(true)
+/// settings.txt 每行 `key=0|1`；缺檔／缺行＝開。存檔時整檔重寫（只有兩個 key）。
+fn setting(dir: &Path, key: &str) -> bool {
+    fs::read_to_string(dir.join("settings.txt")).map(|s| !s.contains(&format!("{key}=0"))).unwrap_or(true)
 }
 
-fn set_check_updates(dir: &Path, on: bool) {
+fn save_settings(dir: &Path, check_updates: bool, restore_desktop: bool) {
     let _ = fs::create_dir_all(dir);
-    let _ = fs::write(dir.join("settings.txt"), format!("check_updates={}\n", if on { 1 } else { 0 }));
+    let body = format!("check_updates={}\nrestore_desktop={}\n", check_updates as u8, restore_desktop as u8);
+    let _ = fs::write(dir.join("settings.txt"), body);
 }
 
 /// 背景執行緒用 Windows 內建 curl 抓最新 Release 的 tag（`v42.20.4-0.1.1`），只回傳比本版新的版本字串。
@@ -499,8 +531,9 @@ fn main() {
     let pause = CheckMenuItem::new(s.menu_pause, true, false, None);
     let quit = MenuItem::new(s.menu_quit, true, None);
     let state_dir = state_dir();
-    let updates = CheckMenuItem::new(s.menu_check_updates, true, check_updates_enabled(&state_dir), None);
-    let menu = Menu::with_items(&[&about, &workshop, &github, &updates, &PredefinedMenuItem::separator(), &pause, &quit])
+    let updates = CheckMenuItem::new(s.menu_check_updates, true, setting(&state_dir, "check_updates"), None);
+    let restore = CheckMenuItem::new(s.menu_restore_desktop, true, setting(&state_dir, "restore_desktop"), None);
+    let menu = Menu::with_items(&[&about, &workshop, &github, &restore, &updates, &PredefinedMenuItem::separator(), &pause, &quit])
         .expect("tray menu");
     let mut status = Status::NoGame;
     let tray: TrayIcon = TrayIconBuilder::new()
@@ -544,8 +577,8 @@ fn main() {
             if let Some(url) = url {
                 unsafe { ShellExecuteW(None, w!("open"), url, None, None, SW_SHOWNORMAL) };
             }
-            if id == updates.id() {
-                set_check_updates(&state_dir, updates.is_checked());
+            if id == updates.id() || id == restore.id() {
+                save_settings(&state_dir, updates.is_checked(), restore.is_checked());
             }
         }
         if updates.is_checked() && last_update_check.is_none_or(|t| t.elapsed() >= UPDATE_EVERY) {
@@ -559,7 +592,7 @@ fn main() {
                 unsafe { ShellExecuteW(None, w!("open"), &HSTRING::from(RELEASES_PAGE), None, None, SW_SHOWNORMAL) };
             }
         }
-        let next = guard.tick(pause.is_checked());
+        let next = guard.tick(pause.is_checked(), restore.is_checked());
         if next != status {
             status = next;
             let _ = tray.set_icon(Some(icon(status)));
