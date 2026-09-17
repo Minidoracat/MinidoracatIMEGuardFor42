@@ -43,6 +43,7 @@ use windows::{
 const WM_INPUTLANGCHANGEREQUEST: u32 = 0x0050;
 const LANG_EN_US: u16 = 0x0409;
 const TICK: Duration = Duration::from_millis(100); // 輪詢 fallback；state.txt 變更由目錄通知即時喚醒
+const RESTORE_WINDOW: Duration = Duration::from_secs(2); // 離開 PZ 後等前景穩定下來還原桌面配置的上限
 const RESEND_AFTER: Duration = Duration::from_millis(500);
 const HEARTBEAT_EVERY: Duration = Duration::from_secs(2);
 
@@ -353,8 +354,9 @@ struct Guard {
     typing: bool,
     last_post: Option<(HKL, Instant)>, // 只對「同一目標」限流重送；目標一換立刻送
     last_heartbeat: Option<Instant>,
-    was_fg: bool,          // 上一輪 PZ 是否在前景；true→false 的那一輪還原桌面配置
-    desktop: Option<HKL>,  // PZ 不在前景時前景視窗用的配置＝玩家桌面本來的輸入法
+    was_fg: bool,                     // 上一輪 PZ 是否在前景；true→false 就進入待還原
+    desktop: Option<HKL>,             // PZ 不在前景時前景視窗用的非 en-US 配置＝玩家桌面本來的輸入法
+    pending_restore: Option<Instant>, // 離開 PZ 後等一個「被 en-US 帶走」的前景視窗來還原，最多 RESTORE_WINDOW
 }
 
 impl Guard {
@@ -369,6 +371,7 @@ impl Guard {
             last_heartbeat: None,
             was_fg: false,
             desktop: None,
+            pending_restore: None,
         };
         guard.rescan_layouts();
         guard
@@ -448,19 +451,24 @@ impl Guard {
         }
         if self.typing { Status::Typing } else { Status::Guarding }
     }
-    /// PZ 不在前景：平時記住桌面用的配置；剛從 PZ 切出去（或 PZ 關掉）的那一輪，若新前景被我們的 en-US 帶走了，
-    /// 就把桌面原本的配置還回去。只撤自己的效果：桌面本來就英文、或玩家開了「每個視窗不同輸入法」都不會動。
+    /// PZ 不在前景：平時記住桌面用的配置（只記非 en-US 的值——被我們帶走成 en-US 的讀值不能覆蓋它，否則
+    /// 一次漏掉就永遠不還原）；離開 PZ（alt-tab 或關遊戲）後進入待還原，等到前景是被 en-US 帶走的視窗才送
+    /// 一次（Alt+Tab 切換器、空前景等過渡狀態先跳過）。桌面從沒見過非 en-US 就永遠不動。
     fn leave_game(&mut self, fg: HWND, safe: HKL, restore: bool) {
+        if std::mem::take(&mut self.was_fg) && restore {
+            self.pending_restore = Some(Instant::now());
+        }
         if fg.0.is_null() {
             return;
         }
         let current = unsafe { GetKeyboardLayout(GetWindowThreadProcessId(fg, None)) };
-        if !self.was_fg {
+        if current != safe {
             self.desktop = Some(current);
             return;
         }
-        self.was_fg = false;
-        if let Some(desktop) = self.desktop.filter(|&d| restore && d != safe && current == safe) {
+        let Some((desktop, since)) = self.desktop.zip(self.pending_restore) else { return };
+        self.pending_restore = None;
+        if since.elapsed() <= RESTORE_WINDOW {
             unsafe {
                 let _ = PostMessageW(Some(fg), WM_INPUTLANGCHANGEREQUEST, WPARAM(0), LPARAM(desktop.0 as isize));
             }
