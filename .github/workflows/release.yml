@@ -56,7 +56,7 @@ jobs:
         run: |
           $ver = $env:TAG.TrimStart('v')
           $lines = Get-Content CHANGELOG.md -Encoding utf8
-          $start = [array]::FindIndex($lines, [Predicate[string]]{ param($l) $l -like "## [$ver]*" })
+          $start = [array]::FindIndex($lines, [Predicate[string]]{ param($l) $l.StartsWith("## [$ver]") })
           if ($start -lt 0) { $section = @("## $ver") } else {
             $end = $start + 1; while ($end -lt $lines.Count -and $lines[$end] -notlike '## *') { $end++ }
             $section = $lines[$start..($end - 1)]
