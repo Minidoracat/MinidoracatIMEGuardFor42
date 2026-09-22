@@ -24,6 +24,8 @@ Windows 上只要中文／日文／韓文輸入法在組字模式，每個按鍵
 [/olist]
 建議打開 Windows「讓我為每個應用程式視窗設定不同的輸入法」，切換就只影響 PZ。
 
+[b]右鍵選項：[/b]可開關「切出遊戲時還原輸入法」（預設開）、「登入 Windows 時自動啟動」（預設關）與自動檢查更新。自動啟動只建立目前使用者的啟動捷徑，取消勾選即移除；刪除工具前請先取消勾選。本版退出改善需同時更新 MOD 與配套工具。
+
 [h2]🌐 支援的輸入法與語言[/h2]
 [list]
 [*] [b]會守護的輸入法：[/b]中文（注音、倉頡、無蝦米、微軟／搜狗拼音、RIME…）、日文（Microsoft IME、Google 日本語入力…）、韓文——中、日有玩家實證，韓文依微軟文件確認同樣會攔鍵。越南文 Telex／VNI、印度語系 Phonetic 等 Windows 內建輸入法機制相同，尚未實機驗證。
@@ -33,9 +35,9 @@ Windows 上只要中文／日文／韓文輸入法在組字模式，每個按鍵
 
 [h2]🦀 為什麼用 Rust、為什麼開源[/h2]
 [list]
-[*] 單一 exe 約 360 KB，不用裝 .NET、Java 或任何執行環境，下載即用。
-[*] Rust 是記憶體安全的語言，沒有緩衝區溢位那類漏洞；常駐時 CPU 約 0.3% 單核、記憶體不到 2 MB。
-[*] 只呼叫 Windows 公開 API：列舉視窗、讀鍵盤配置、送一個切換訊息。不裝鍵盤 hook、不讀你的按鍵、不連網、不改登錄檔、不碰其他程式。MOD 本身是純 Lua，只寫一個「正在打字」的旗標到你的 Zomboid 資料夾。
+[*] 單一 exe，不用裝 .NET、Java 或任何執行環境，下載即用。
+[*] 使用 Rust 開發，沒有遊戲程序注入；不讀取玩家按鍵。
+[*] 透過 Windows 公開 API 切換鍵盤，不裝鍵盤 hook、不改登錄檔。可選擇在離開 PZ 後還原其他前景視窗的輸入法，並透過 GitHub 檢查更新。MOD 本身是純 Lua，只寫打字與正常退出訊號到 Zomboid 資料夾。
 [*] 原始碼公開在 [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42]GitHub[/url]，任何人都能檢視、自行編譯比對。每一版 exe 都由 GitHub Actions 在乾淨環境建置，並自動送 VirusTotal 掃描，SHA-256 與掃描連結都在 Release 頁。exe 未做程式碼簽章，SmartScreen 可能提示「未知發行者」——不放心就自己 cargo build。
 [/list]
 

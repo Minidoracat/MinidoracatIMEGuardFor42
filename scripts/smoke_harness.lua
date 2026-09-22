@@ -6,8 +6,8 @@
 限制（必須誠實面對）：這是標準 Lua，不是遊戲的 Kahlua。
 - 標準 Lua 有 next/assert/xpcall，Kahlua 沒有——本 harness **測不出**誤用，
   那由 scripts/verify_mod.py 的靜態掃描負責（發版前兩者都要跑）
-- 輸入法切換本身在外部工具（tools/pz-ime-guard），這裡只驗訊號端：
-  「打字狀態變了才寫檔、寫的內容對、工具不在線時提醒一次」。實機證據見 .omc/artifacts/e2e-*。
+- 輸入法切換本身在外部工具（tools/pz-ime-guard），這裡只驗訊號端：「打字狀態變了才寫檔、寫的內容對、
+  工具不在線時提醒一次、關程序的四條路徑會寫退出旗標而取消不會」。實機證據見 .omc/artifacts/e2e-*。
 ]]
 
 local MEDIA = "MOD/MinidoracatIMEGuardFor42/Contents/mods/MinidoracatIMEGuardFor42/42/media/lua"
@@ -102,6 +102,38 @@ files[HB] = "garbage"
 check(gameStart() == 1, "非數字內容 -> 視為不在線，不炸")
 files[HB] = tostring(now + 5)
 check(gameStart() == 0, "時鐘稍微超前的 heartbeat 也算在線")
+
+-- ===== 情境四：正常退出訊號（只有真的要關程序才寫） =====
+io.write("情境四：退出訊號\n")
+local EXIT = "MinidoracatIMEGuard/exiting.txt"
+local called = {}
+MainScreen = { quitToDesktop = function() called[#called + 1] = "main" end }
+ISPostDeathUI = { onConfirmQuitToDesktop = function(_, button) called[#called + 1] = "death:" .. button.internal end }
+ISServerDisconnectUI = { onToDesktop = function() called[#called + 1] = "disconnect" end }
+ISTermsOfServiceUI = { onButtonQuit = function() called[#called + 1] = "terms" end }
+files[EXIT] = "1" -- 上一局關程序前寫的，工具沒開所以沒被消費掉
+fire("OnGameBoot")
+check(files[EXIT] == "0", "OnGameBoot 清掉殘留旗標，不讓上一局停守下一局")
+MainScreen:quitToDesktop()
+check(files[EXIT] == "1" and called[1] == "main", "主選單／遊戲內 Quit 確認後寫 1，原函式照常執行")
+
+fire("OnGameBoot")
+ISPostDeathUI:onConfirmQuitToDesktop({ internal = "NO" })
+check(files[EXIT] == "0" and called[2] == "death:NO", "死亡畫面按 NO：原函式照跑，但不寫旗標")
+ISPostDeathUI:onConfirmQuitToDesktop({ internal = "YES" })
+check(files[EXIT] == "1" and called[3] == "death:YES", "死亡畫面按 YES：寫 1")
+
+fire("OnGameBoot")
+ISServerDisconnectUI:onToDesktop({})
+check(files[EXIT] == "1" and called[4] == "disconnect", "斷線畫面 Quit：寫 1")
+fire("OnGameBoot")
+ISTermsOfServiceUI:onButtonQuit({})
+check(files[EXIT] == "1" and called[5] == "terms", "服務條款 Quit：寫 1")
+
+fire("OnGameBoot") -- 回主選單也會再觸發一次 OnGameBoot（IngameState.java:1069）
+local beforeWrites = writes
+MainScreen:quitToDesktop()
+check(writes == beforeWrites + 1, "重複 OnGameBoot 不重複包裝（一次退出只寫一次）")
 
 io.write("\n")
 if failures > 0 then

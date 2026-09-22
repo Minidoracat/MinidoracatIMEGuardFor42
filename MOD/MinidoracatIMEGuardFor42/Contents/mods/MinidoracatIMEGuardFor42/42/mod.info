@@ -2,5 +2,5 @@ name=Minidoracat IME Guard for B42
 id=MinidoracatIMEGuardFor42
 description=[B42]輸入法守衛。偵測聊天等文字輸入框的開關並通知配套的 pz-ime-guard 常駐工具：玩遊戲時自動切到英文鍵盤、打字時切回你原本的輸入法，讓注音、拼音、日文、韓文等輸入法不再卡住移動與操作鍵。需搭配 Windows 配套工具（GitHub 下載）；純 client 端，單人／多人皆可用。By Minidoracat
 poster=poster.png
-modversion=42.20.4-0.1.2
+modversion=42.20.4-0.1.4
 versionMin=42.20.4

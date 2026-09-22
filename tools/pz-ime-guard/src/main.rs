@@ -4,11 +4,13 @@
 //! 決定它該用哪個鍵盤配置，不對就送 WM_INPUTLANGCHANGEREQUEST，下一輪回讀確認（請求 ≠ 已接受）。
 //!   沒在打字 → en-US（GLFW 才收得到按鍵）；打字中 → 玩家原本的 IME。
 //! 「原本的 IME」＝最近一次在 PZ 視窗上看到的非英文配置（玩家按 Alt+Shift 切走時順便記住，再切回）。
-//! 離開 PZ（alt-tab 或關遊戲）那一刻，若新前景被我們的 en-US 帶走了，就把 PZ 進前景前桌面用的配置還回去（可關）。
+//! 離開 PZ（alt-tab、關遊戲、正常退出）後，若我們真的把它切走過，就等一個穩定的新前景，把 PZ 進前景前
+//! 桌面用的配置還回去（有限重試＋回讀確認，可關）。沒切過就沒有還原責任，絕不把 en-US 推給桌面。
 //! 不裝鍵盤 hook、不代送按鍵、不改登錄檔；除了上述還原之外不碰其他視窗。
 //!
 //! 檔案協定（%USERPROFILE%\Zomboid\Lua\MinidoracatIMEGuard\）：
 //!   state.txt      MOD 寫，"1"＝打字中、"0"＝沒有；空檔／其他內容視為未變
+//!   exiting.txt    MOD 寫，"1"＝玩家已確認關程序（視窗還會活很久），"0"／空＝正常；本工具讀到就消費掉
 //!   heartbeat.txt  本工具每 2 s 寫 epoch 秒；MOD 進遊戲時讀不到或過期就提醒玩家
 #![windows_subsystem = "windows"]
 
@@ -34,16 +36,21 @@ use windows::{
     Win32::System::Threading::CreateMutexW,
     Win32::UI::Shell::ShellExecuteW,
     Win32::UI::WindowsAndMessaging::{
-        DispatchMessageW, EnumWindows, GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
+        DispatchMessageW, EnumWindows, GetClassNameW, GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
         IsWindow, IsWindowVisible, MessageBoxW, MsgWaitForMultipleObjects, PeekMessageW, PostMessageW, TranslateMessage,
         IDYES, MB_ICONINFORMATION, MB_ICONWARNING, MB_OK, MB_YESNO, MSG, PM_REMOVE, QS_ALLINPUT, SW_SHOWNORMAL,
     },
 };
 
+mod startup;
+
 const WM_INPUTLANGCHANGEREQUEST: u32 = 0x0050;
 const LANG_EN_US: u16 = 0x0409;
 const TICK: Duration = Duration::from_millis(100); // 輪詢 fallback；state.txt 變更由目錄通知即時喚醒
-const RESTORE_WINDOW: Duration = Duration::from_secs(2); // 離開 PZ 後等前景穩定下來還原桌面配置的上限
+const RESTORE_SETTLE: Duration = Duration::from_millis(300); // 前景要真的待滿這麼久才算穩定（兩輪可能只差 1 ms）
+const RESTORE_WINDOW: Duration = Duration::from_secs(2); // 前景穩定後，還原桌面配置的時限
+const RESTORE_GIVE_UP: Duration = Duration::from_secs(10); // 有可用前景之後的絕對放棄上限
+const RESTORE_TRIES: u8 = 3; // 還原請求的重送次數上限（請求 ≠ 已接受）
 const RESEND_AFTER: Duration = Duration::from_millis(500);
 const HEARTBEAT_EVERY: Duration = Duration::from_secs(2);
 
@@ -110,6 +117,24 @@ fn find_game_window() -> Option<HWND> {
     found
 }
 
+/// Alt+Tab 切換器、工作檢視、開始功能表那類一閃而過的殼層視窗。它們會短暫成為前景，
+/// 拿它們當還原對象不但沒用（訊息大多被丟掉），還會把還原機會白白吃掉。
+/// ponytail: 只比類別名，不呼叫 shell COM；名單以外一律當成真正的視窗。
+fn is_transient_shell(hwnd: HWND) -> bool {
+    const SHELLS: [&str; 6] = [
+        "XamlExplorerHostIslandWindow", // Win11 Alt+Tab／工作檢視
+        "MultitaskingViewFrame",        // Win10 工作檢視
+        "TaskSwitcherWnd",              // 傳統 Alt+Tab
+        "TaskSwitcherOverlayWnd",
+        "ForegroundStaging",              // 切換動畫的暫存前景
+        "Windows.UI.Core.CoreWindow",     // 開始功能表／搜尋等 UWP 覆蓋層
+    ];
+    let mut buf = [0u16; 64];
+    let len = unsafe { GetClassNameW(hwnd, &mut buf) } as usize;
+    let class = String::from_utf16_lossy(&buf[..len]);
+    SHELLS.contains(&class.as_str())
+}
+
 /// ponytail: 只認 %USERPROFILE%\Zomboid；PZ 的 -cachedir 改路徑時要改這裡。
 fn state_dir() -> PathBuf {
     let home = std::env::var_os("USERPROFILE").unwrap_or_default();
@@ -121,6 +146,7 @@ enum Status {
     Paused,
     NoGame,
     Background,
+    Closing,
     NoEnglish,
     Guarding,
     Typing,
@@ -129,7 +155,7 @@ enum Status {
 impl Status {
     fn rgb(self) -> [u8; 3] {
         match self {
-            Status::Paused | Status::NoGame | Status::Background => [128, 128, 128],
+            Status::Paused | Status::NoGame | Status::Background | Status::Closing => [128, 128, 128],
             Status::NoEnglish => [220, 50, 50],
             Status::Guarding => [40, 180, 80],
             Status::Typing => [240, 160, 30],
@@ -140,6 +166,7 @@ impl Status {
             Status::Paused => s.paused,
             Status::NoGame => s.no_game,
             Status::Background => s.background,
+            Status::Closing => s.closing,
             Status::NoEnglish => s.no_english,
             Status::Guarding => s.guarding,
             Status::Typing => s.typing,
@@ -153,6 +180,7 @@ struct Strings {
     paused: &'static str,
     no_game: &'static str,
     background: &'static str,
+    closing: &'static str,
     no_english: &'static str,
     guarding: &'static str,
     typing: &'static str,
@@ -164,6 +192,8 @@ struct Strings {
     menu_github: &'static str,
     menu_check_updates: &'static str,
     menu_restore_desktop: &'static str,
+    menu_startup: &'static str,
+    startup_failed: &'static str,
     update_available: &'static str,
     notice: &'static str,
 }
@@ -172,6 +202,7 @@ const EN: Strings = Strings {
     paused: "paused",
     no_game: "waiting for Project Zomboid",
     background: "PZ not in foreground",
+    closing: "Project Zomboid is closing — guard stopped",
     no_english: "no non-IME keyboard installed — add English (US) in Windows settings",
     guarding: "safe layout active (movement keys work)",
     typing: "typing, your IME restored",
@@ -180,6 +211,8 @@ const EN: Strings = Strings {
     menu_github: "GitHub (source / issues)",
     menu_check_updates: "Check for updates (on start, daily)",
     menu_restore_desktop: "Restore my IME when leaving the game",
+    menu_startup: "Start when I sign in to Windows",
+    startup_failed: "Could not change the Windows startup shortcut:\n\n{error}",
     update_available: "pz-ime-guard {tag} is available (you have {current}).
 
 Open the download page?",
@@ -196,6 +229,7 @@ const TW: Strings = Strings {
     paused: "已暫停",
     no_game: "等待 Project Zomboid 啟動",
     background: "PZ 不在前景",
+    closing: "Project Zomboid 正在關閉，已停止守護",
     no_english: "系統只有輸入法鍵盤，請到 Windows 設定新增英文（美國）鍵盤",
     guarding: "英文鍵盤中，移動鍵安全",
     typing: "打字中，已切回你的輸入法",
@@ -204,6 +238,8 @@ const TW: Strings = Strings {
     menu_github: "GitHub（原始碼／回報問題）",
     menu_check_updates: "自動檢查更新（啟動時與每日）",
     menu_restore_desktop: "切出遊戲時還原桌面的輸入法",
+    menu_startup: "登入 Windows 時自動啟動",
+    startup_failed: "無法變更自動啟動的捷徑：\n\n{error}",
     update_available: "有新版 pz-ime-guard {tag}（目前 {current}）。
 
 要開啟下載頁嗎？",
@@ -220,6 +256,7 @@ const CN: Strings = Strings {
     paused: "已暂停",
     no_game: "等待 Project Zomboid 启动",
     background: "PZ 不在前台",
+    closing: "Project Zomboid 正在关闭，已停止守护",
     no_english: "系统只有输入法键盘，请到 Windows 设置新增英语（美国）键盘",
     guarding: "英文键盘中，移动键安全",
     typing: "打字中，已切回你的输入法",
@@ -228,6 +265,8 @@ const CN: Strings = Strings {
     menu_github: "GitHub（源码／反馈问题）",
     menu_check_updates: "自动检查更新（启动时与每日）",
     menu_restore_desktop: "切出游戏时还原桌面的输入法",
+    menu_startup: "登录 Windows 时自动启动",
+    startup_failed: "无法变更自动启动的快捷方式：\n\n{error}",
     update_available: "有新版 pz-ime-guard {tag}（当前 {current}）。
 
 要打开下载页吗？",
@@ -244,6 +283,7 @@ const JP: Strings = Strings {
     paused: "一時停止中",
     no_game: "Project Zomboid の起動を待機中",
     background: "PZ が前面にありません",
+    closing: "Project Zomboid を終了中、保護を停止しました",
     no_english: "IME 以外のキーボードがありません。Windows 設定で英語（米国）を追加してください",
     guarding: "英語配列中、移動キーは安全",
     typing: "入力中、IME を復帰済み",
@@ -252,6 +292,8 @@ const JP: Strings = Strings {
     menu_github: "GitHub（ソース／不具合報告）",
     menu_check_updates: "更新を自動確認（起動時と毎日）",
     menu_restore_desktop: "ゲームから離れたら元の IME に戻す",
+    menu_startup: "Windows サインイン時に自動実行",
+    startup_failed: "スタートアップのショートカットを変更できませんでした：\n\n{error}",
     update_available: "新しい pz-ime-guard {tag} があります（現在 {current}）。
 
 ダウンロードページを開きますか？",
@@ -269,6 +311,7 @@ const KO: Strings = Strings {
     paused: "일시 정지됨",
     no_game: "Project Zomboid 실행 대기 중",
     background: "PZ가 전면에 있지 않음",
+    closing: "Project Zomboid 종료 중, 보호를 중지했습니다",
     no_english: "IME가 아닌 키보드가 없습니다. Windows 설정에서 영어(미국)를 추가하세요",
     guarding: "영어 배열 활성, 이동 키 안전",
     typing: "입력 중, IME 복원됨",
@@ -277,6 +320,8 @@ const KO: Strings = Strings {
     menu_github: "GitHub(소스／문제 제보)",
     menu_check_updates: "업데이트 자동 확인(시작 시·매일)",
     menu_restore_desktop: "게임에서 벗어나면 원래 IME로 복원",
+    menu_startup: "Windows 로그인 시 자동 실행",
+    startup_failed: "시작 프로그램 바로 가기를 변경하지 못했습니다:\n\n{error}",
     update_available: "새 버전 pz-ime-guard {tag}가 있습니다(현재 {current}).
 
 다운로드 페이지를 열까요?",
@@ -346,6 +391,228 @@ fn first_run_notice(dir: &Path, s: &Strings) {
     }
 }
 
+/// PZ 不在前景時看到的前景視窗。`thread` 一起記下來：HWND 會被回收再利用，送出前重驗「同一個
+/// 視窗、同一條執行緒、而且還是前景」才不會把配置塞給別人的視窗。
+/// 沒有前景、前景是 PZ 自己（關程序等待中）、或前景是 Alt+Tab 切換器之類的過渡殼層，都餵 None。
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct Foreground {
+    window: isize,
+    thread: u32,
+    layout: HKL,
+}
+
+#[derive(PartialEq, Eq, Debug)]
+enum Step {
+    Nothing,
+    Post { window: isize, thread: u32, layout: HKL },
+}
+
+/// 待還原。兩個時鐘都不從「離開 PZ 那一刻」起算：
+///   `armed`   第一次看到可用的（非遊戲、非過渡）前景才開始，之後 RESTORE_GIVE_UP 內沒搞定就放棄。
+///             關程序等待可能很長（存檔、關 Steam、壓日誌），那段時間前景還是 PZ，不能讓時鐘空轉。
+///   `deadline` 該前景真正待滿 RESTORE_SETTLE 之後才起算，這才是「可以動手」的時刻。
+struct Pending {
+    armed: Option<Instant>,
+    window: Option<isize>, // 綁定的前景視窗；換一個就重新起算，絕不對舊視窗繼續送
+    deadline: Option<Instant>,
+    posted: Option<Instant>,
+    tries: u8,
+}
+
+/// 還原桌面配置的決策：純邏輯、不碰 Win32（觀察值由 tick 餵進來），所以可以單測。
+/// 責任來源只有一個：我們真的把 PZ 從玩家的配置切走過（回讀確認），否則一律不動桌面，
+/// 免得把 en-US 推給從來沒被我們碰過的環境。
+#[derive(Default)]
+struct Restorer {
+    desktop: Option<HKL>, // PZ 進前景前，桌面前景視窗用的（非 safe）配置＝還原目標
+    owed: bool,           // 有還原責任：我們真的把 PZ 切走過（回讀確認）
+    away: bool,           // 目前人不在 PZ 裡
+    done: bool,           // 這一次離開已經處理完（還原成功、或已放棄），不再重新武裝
+    pending: Option<Pending>,
+    seen: Option<(isize, Instant)>, // 目前的前景視窗與第一次看到它的時間；靠真實時間判斷穩定
+}
+
+impl Restorer {
+    /// PZ 在前景，且回讀確認我們送出的安全配置已經生效。
+    fn took_over(&mut self) {
+        self.owed = true;
+    }
+
+    /// 收手。`settled` 代表桌面已經回到玩家要的配置，責任了結；放棄（逾時、重送用完、沒有還原目標）
+    /// 則留著責任，下次離開再試一次。同一次離開只處理一輪，不會反覆重新武裝。
+    fn finish(&mut self, settled: bool) {
+        self.pending = None;
+        self.done = true;
+        if settled {
+            self.owed = false;
+        }
+    }
+
+    /// PZ 回到前景：待還原作廢（現在該守，不該還原），等下次離開再重新起算。
+    fn in_game(&mut self) {
+        self.pending = None;
+        self.away = false;
+        self.seen = None;
+    }
+
+    /// 暫停、或玩家把「還原」選項關掉：連還原責任一起放掉。只清 pending 不夠——暫停期間玩家切出去，
+    /// 恢復後那一輪又會重新武裝，變成很久以後才補送一次；恢復守護後下一輪回讀確認會重新背上責任。
+    fn cancel(&mut self) {
+        self.finish(true);
+    }
+
+    /// PZ 從前景離開（alt-tab、關遊戲、正常退出訊號）。這裡不直接武裝：回讀確認可能晚幾輪才到
+    /// （剛送出切換就 alt-tab 的話），用「離開那一瞬間」當邊緣會整個漏掉，改由 observe 依條件武裝。
+    fn left(&mut self) {
+        self.away = true;
+        self.done = false;
+        self.seen = None;
+    }
+
+    /// PZ 不在前景的每一輪。回傳這一輪要送出的還原請求；請求 ≠ 已接受，下一輪看回讀結果決定重送或收手。
+    fn observe(&mut self, now: Instant, fg: Option<Foreground>, safe: HKL, enabled: bool) -> Step {
+        if !enabled {
+            self.cancel();
+        }
+        // 武裝條件（不是邊緣）：責任可能在離開之後才確認下來，那時「離開那一瞬間」早就過去了
+        if self.away && !self.done && self.owed && self.pending.is_none() {
+            self.pending = Some(Pending { armed: None, window: None, deadline: None, posted: None, tries: 0 });
+        }
+        let Some(fg) = fg else {
+            self.seen = None; // 過渡狀態：時鐘不起算，待還原也不被消耗掉
+            return Step::Nothing;
+        };
+        let first_seen = match self.seen {
+            Some((window, at)) if window == fg.window => at,
+            _ => {
+                self.seen = Some((fg.window, now));
+                now
+            }
+        };
+        // 這裡才算「有可用的前景」：絕對放棄上限從現在起算，關程序等待多久都不會吃掉它
+        if let Some(p) = self.pending.as_mut() {
+            if p.armed.is_none() {
+                p.armed = Some(now);
+            }
+        }
+        if self.pending.as_ref().is_some_and(|p| p.armed.is_some_and(|a| now.duration_since(a) > RESTORE_GIVE_UP)) {
+            self.finish(false);
+        }
+        if fg.layout != safe {
+            // 前景不是被我們帶走的配置：玩家本來就用這個、或剛手動切成別的——兩種都是他的意圖，
+            // 記下來當下次的還原目標，並結束這次的責任（同時也是還原成功的回讀確認）。
+            self.desktop = Some(fg.layout);
+            if now.duration_since(first_seen) >= RESTORE_SETTLE {
+                self.finish(true); // 桌面已經是玩家要的配置，責任了結（這也是還原成功的回讀確認）
+            }
+            return Step::Nothing;
+        }
+        // 連續兩輪同一個 HWND 不等於穩定：目錄變更通知可能在 1 ms 內叫醒兩輪。要真的待滿一段時間。
+        if now.duration_since(first_seen) < RESTORE_SETTLE {
+            return Step::Nothing;
+        }
+        let Some(desktop) = self.desktop else {
+            self.finish(false); // 從沒看過桌面的配置＝沒有還原目標，永遠不動
+            return Step::Nothing;
+        };
+        let Some(p) = self.pending.as_mut() else { return Step::Nothing };
+        if p.window != Some(fg.window) {
+            p.window = Some(fg.window);
+            p.deadline = Some(now + RESTORE_WINDOW);
+            p.posted = None;
+            p.tries = 0;
+        }
+        if p.deadline.is_some_and(|d| now > d) || p.tries >= RESTORE_TRIES {
+            self.finish(false); // 這次沒成功，但責任還在：下次離開再試
+            return Step::Nothing;
+        }
+        if p.posted.is_some_and(|t| now.duration_since(t) < RESEND_AFTER) {
+            return Step::Nothing;
+        }
+        p.posted = Some(now);
+        p.tries += 1;
+        Step::Post { window: fg.window, thread: fg.thread, layout: desktop }
+    }
+}
+
+/// exiting.txt 的三種判讀。**"0" 不是「沒事」，是「新的一局開始了」**：MOD 每次 OnGameBoot 都寫它，
+/// 所以它能把上一局殘留的 "1" 造成的鎖存解開。少了這個分別，「工具暫停→上一局寫 1 沒被處理→新一局
+/// 開窗→解除暫停讀到舊的 1 鎖住新視窗」之後就再也解不開，新的一局永遠停在 Closing。
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum ExitSignal {
+    None,     // 沒有可信的新版本：維持現狀
+    Quitting, // "1"：玩家已確認關程序
+    Reset,    // "0"：MOD 剛開機／回主選單，這一局是乾淨的
+}
+
+/// exiting.txt 的判讀。回傳（這一輪的訊號、新的水位）。
+/// **只有讀到完整有效值才推進水位**：MOD 用 getFileWriter 先截斷再寫，中間那一瞬間是空檔，
+/// 把空檔或讀失敗當成「這個版本看過了」會整個漏掉退出訊號。也不刪檔——那是 MOD 正在寫的檔，
+/// 刪它只會製造競態；水位本身就足以保證同一個版本不會被認第二次。
+/// 水位起始值＝本工具啟動時間，所以上一局留在磁碟上的舊旗標一律不認。
+fn exit_verdict(content: Option<&str>, mtime: SystemTime, seen: SystemTime) -> (ExitSignal, SystemTime) {
+    if mtime <= seen {
+        return (ExitSignal::None, seen);
+    }
+    match content.map(str::trim) {
+        Some("1") => (ExitSignal::Quitting, mtime),
+        Some("0") => (ExitSignal::Reset, mtime),
+        _ => (ExitSignal::None, seen),
+    }
+}
+
+/// 退出鎖存。MOD 只在四條已確認的 quitToDesktop 路徑寫 exiting.txt（回主選單走 quit()／exitToMenu()，
+/// 視窗還在，不寫）。旗標綁在當時那個遊戲視窗上：視窗消失或換成下一局就解除，免得一個沒被消費掉的
+/// 旗標把下一局整局停守。
+#[derive(Default)]
+struct ExitLatch {
+    window: Option<isize>,
+}
+
+impl ExitLatch {
+    /// 回傳「這個遊戲視窗已經在關程序」。鎖存住就不會再回 Guarding，直到視窗真的不見、換了一局，
+    /// 或是 MOD 在新的一局 OnGameBoot 寫了 "0"（Reset）把它解開。
+    fn update(&mut self, game: Option<isize>, signal: ExitSignal) -> bool {
+        if self.window.is_some() && self.window != game {
+            self.window = None;
+        }
+        match signal {
+            ExitSignal::Quitting => self.window = game,
+            ExitSignal::Reset => self.window = None,
+            ExitSignal::None => {}
+        }
+        self.window.is_some() && self.window == game
+    }
+}
+
+/// 責任來源的追蹤：我們對哪個視窗送過「切到安全配置」，以及那個請求有沒有被接受（請求 ≠ 已接受）。
+/// 確認過就消費掉，暫停／關掉還原就整個丟掉——留著的話，暫停期間切出去、解除暫停那一輪的回讀
+/// 會把舊請求當成新責任，事後補送一次還原。
+#[derive(Default)]
+struct Takeover {
+    requested: Option<isize>,
+}
+
+impl Takeover {
+    fn requested(&mut self, window: isize) {
+        self.requested = Some(window);
+    }
+    fn forget(&mut self) {
+        self.requested = None;
+    }
+    fn pending_for(&self, window: isize) -> bool {
+        self.requested == Some(window)
+    }
+    /// 回讀確認：同一個視窗、而且配置真的已經是安全配置，才算我們把它切走過。
+    fn confirm(&mut self, window: isize, layout_is_safe: bool) -> bool {
+        if layout_is_safe && self.requested == Some(window) {
+            self.requested = None;
+            return true;
+        }
+        false
+    }
+}
+
 struct Guard {
     dir: PathBuf,
     hwnd: Option<HWND>, // 快取；IsWindow 失效才重掃（EnumWindows＋跨程序 GetWindowText 是主要 CPU 來源）
@@ -354,9 +621,11 @@ struct Guard {
     typing: bool,
     last_post: Option<(HKL, Instant)>, // 只對「同一目標」限流重送；目標一換立刻送
     last_heartbeat: Option<Instant>,
-    was_fg: bool,                     // 上一輪 PZ 是否在前景；true→false 就進入待還原
-    desktop: Option<HKL>,             // PZ 不在前景時前景視窗用的非 en-US 配置＝玩家桌面本來的輸入法
-    pending_restore: Option<Instant>, // 離開 PZ 後等一個「被 en-US 帶走」的前景視窗來還原，最多 RESTORE_WINDOW
+    was_fg: bool,                      // 上一輪 PZ 是否在前景；true→false 就進入待還原
+    takeover: Takeover, // 責任來源：這輪前景期間對哪個視窗送過「切到安全配置」
+    restorer: Restorer,
+    exit: ExitLatch,
+    exit_seen: SystemTime, // exiting.txt 已經看過的最新 mtime；起始值＝本工具啟動時間
 }
 
 impl Guard {
@@ -370,8 +639,10 @@ impl Guard {
             last_post: None,
             last_heartbeat: None,
             was_fg: false,
-            desktop: None,
-            pending_restore: None,
+            takeover: Takeover::default(),
+            restorer: Restorer::default(),
+            exit: ExitLatch::default(),
+            exit_seen: SystemTime::now(),
         };
         guard.rescan_layouts();
         guard
@@ -394,6 +665,19 @@ impl Guard {
         }
     }
 
+    /// 退出訊號：只認本工具這個工作階段之後寫的版本（比 mtime）。判讀規則見 `exit_verdict`。
+    fn exit_signal(&mut self) -> ExitSignal {
+        let path = self.dir.join("exiting.txt");
+        let Ok(mtime) = fs::metadata(&path).and_then(|m| m.modified()) else { return ExitSignal::None };
+        if mtime <= self.exit_seen {
+            return ExitSignal::None; // 常見路徑：連讀都不用讀
+        }
+        let body = fs::read_to_string(&path).ok();
+        let (signal, seen) = exit_verdict(body.as_deref(), mtime, self.exit_seen);
+        self.exit_seen = seen;
+        signal
+    }
+
     fn heartbeat(&mut self) {
         if self.last_heartbeat.is_some_and(|t| t.elapsed() < HEARTBEAT_EVERY) {
             return;
@@ -408,9 +692,54 @@ impl Guard {
         }
     }
 
+    /// 暫停、或玩家把「離開時還原」關掉：責任與**責任來源**一起放掉。只清 Restorer 不夠——舊的
+    /// 「已送出切換」請求還留著的話，暫停期間切出去、解除暫停那一輪的回讀會把它當成新責任補送一次。
+    fn disown(&mut self) {
+        self.takeover.forget();
+        self.restorer.cancel();
+    }
+
+    /// PZ 在前景這一輪的責任追蹤。Win32 的部分（送出切換、回讀配置）由 tick 做完再把結果餵進來，
+    /// 所以「送出→回讀→暫停→切出」這種跨元件順序可以整合測試。
+    fn guard_tick(&mut self, window: isize, restore: bool, posted_safe: bool, is_safe: bool) {
+        self.was_fg = true;
+        self.restorer.in_game();
+        if !restore {
+            self.disown(); // 關掉還原：連舊請求一起丟，重新打開也不追舊責任
+            return;
+        }
+        if posted_safe {
+            self.takeover.requested(window);
+        }
+        if self.takeover.confirm(window, is_safe) {
+            self.restorer.took_over();
+        }
+    }
+
+    /// PZ 不在前景（含關程序等待）這一輪。`game` 是遊戲視窗與「它的配置現在是不是安全配置」——
+    /// 剛送出切換就馬上 alt-tab 的話，回讀會落在離開之後這幾輪，這裡確認到了才算真的切走過。
+    fn away_tick(&mut self, now: Instant, game: Option<(isize, bool)>, fg: Option<Foreground>, safe: HKL, restore: bool) -> Step {
+        if !restore {
+            self.disown();
+        }
+        if std::mem::take(&mut self.was_fg) {
+            self.restorer.left();
+        }
+        match game {
+            Some((pz, is_safe)) => {
+                if self.takeover.confirm(pz, is_safe) {
+                    self.restorer.took_over();
+                }
+            }
+            None => self.takeover.forget(), // 視窗沒了：這次的請求不用再追
+        }
+        self.restorer.observe(now, fg, safe, restore)
+    }
+
     fn tick(&mut self, paused: bool, restore: bool) -> Status {
         self.heartbeat();
         if paused {
+            self.disown();
             return Status::Paused;
         }
         let Some(safe) = self.safe else {
@@ -422,13 +751,47 @@ impl Guard {
             self.hwnd = find_game_window();
             self.hwnd
         });
+        let signal = self.exit_signal();
+        let quitting = self.exit.update(hwnd.map(|h| h.0 as isize), signal);
         let fg = unsafe { GetForegroundWindow() };
-        if hwnd != Some(fg) {
-            self.leave_game(fg, safe, restore);
-            return if hwnd.is_some() { Status::Background } else { Status::NoGame };
+        let now = Instant::now();
+        // 玩家確認關程序後，視窗還會活很久（GameWindow.exit() 存檔／關 Steam／壓日誌），而且多半還是前景。
+        // 那段時間遊戲已經不吃按鍵，繼續守只會把 en-US 留在桌面上，所以訊號一到就當作離開。
+        if quitting || hwnd != Some(fg) {
+            // 只有還有未確認的請求時才去讀 PZ 緒的配置
+            let game = hwnd.map(|pz| {
+                let id = pz.0 as isize;
+                let is_safe = self.takeover.pending_for(id)
+                    && unsafe { GetKeyboardLayout(GetWindowThreadProcessId(pz, None)) } == safe;
+                (id, is_safe)
+            });
+            // 還原目標永遠不會是遊戲視窗自己（關程序等待中它還是前景，而且已經不處理訊息了），
+            // 也不會是 Alt+Tab 切換器那種過渡殼層
+            let target = (!fg.0.is_null() && Some(fg) != hwnd && !is_transient_shell(fg)).then(|| {
+                let thread = unsafe { GetWindowThreadProcessId(fg, None) };
+                Foreground { window: fg.0 as isize, thread, layout: unsafe { GetKeyboardLayout(thread) } }
+            });
+            if let Step::Post { window, thread, layout } = self.away_tick(now, game, target, safe, restore) {
+                let win = HWND(window as *mut core::ffi::c_void);
+                // 送出前重驗：決策到這一行之間前景可能已經換人，HWND 也可能被回收給別的程序
+                let still_there = unsafe {
+                    IsWindow(Some(win)).as_bool()
+                        && GetForegroundWindow() == win
+                        && GetWindowThreadProcessId(win, None) == thread
+                };
+                if still_there {
+                    unsafe {
+                        let _ = PostMessageW(Some(win), WM_INPUTLANGCHANGEREQUEST, WPARAM(0), LPARAM(layout.0 as isize));
+                    }
+                }
+            }
+            return match (quitting, hwnd.is_some()) {
+                (true, _) => Status::Closing,
+                (false, true) => Status::Background,
+                (false, false) => Status::NoGame,
+            };
         }
         let hwnd = fg;
-        self.was_fg = true;
         let thread = unsafe { GetWindowThreadProcessId(hwnd, None) };
         let current = unsafe { GetKeyboardLayout(thread) };
         if is_ime_lang(current) {
@@ -443,36 +806,22 @@ impl Guard {
             (false, _) => current,
         };
         let same_target_recently = self.last_post.is_some_and(|(h, t)| h == want && t.elapsed() < RESEND_AFTER);
+        let mut posted_safe = false;
         if current != want && !same_target_recently {
-            self.last_post = Some((want, Instant::now()));
+            self.last_post = Some((want, now));
+            posted_safe = want == safe;
             unsafe {
                 let _ = PostMessageW(Some(hwnd), WM_INPUTLANGCHANGEREQUEST, WPARAM(0), LPARAM(want.0 as isize));
             }
         }
+        // 回讀確認我們真的把這個視窗切走了，才背上還原責任（請求 ≠ 已接受）
+        self.guard_tick(hwnd.0 as isize, restore, posted_safe, current == safe);
         if self.typing { Status::Typing } else { Status::Guarding }
     }
-    /// PZ 不在前景：平時記住桌面用的配置（只記非 en-US 的值——被我們帶走成 en-US 的讀值不能覆蓋它，否則
-    /// 一次漏掉就永遠不還原）；離開 PZ（alt-tab 或關遊戲）後進入待還原，等到前景是被 en-US 帶走的視窗才送
-    /// 一次（Alt+Tab 切換器、空前景等過渡狀態先跳過）。桌面從沒見過非 en-US 就永遠不動。
-    fn leave_game(&mut self, fg: HWND, safe: HKL, restore: bool) {
-        if std::mem::take(&mut self.was_fg) && restore {
-            self.pending_restore = Some(Instant::now());
-        }
-        if fg.0.is_null() {
-            return;
-        }
-        let current = unsafe { GetKeyboardLayout(GetWindowThreadProcessId(fg, None)) };
-        if current != safe {
-            self.desktop = Some(current);
-            return;
-        }
-        let Some((desktop, since)) = self.desktop.zip(self.pending_restore) else { return };
-        self.pending_restore = None;
-        if since.elapsed() <= RESTORE_WINDOW {
-            unsafe {
-                let _ = PostMessageW(Some(fg), WM_INPUTLANGCHANGEREQUEST, WPARAM(0), LPARAM(desktop.0 as isize));
-            }
-        }
+
+    /// 還原還沒完成時不要放慢輪詢：前景穩定判定與回讀確認都要靠接下來這幾輪
+    fn restoring(&self) -> bool {
+        self.restorer.pending.is_some()
     }
 }
 
@@ -527,10 +876,14 @@ fn is_newer(candidate: &str, current: &str) -> bool {
 
 fn main() {
     let s = strings();
+    // 開機自動啟動的那一份帶 --startup：第二實例要安靜（開機時彈對話框很煩），手動點開的照常提示
+    let from_startup = std::env::args().any(|a| a == "--startup");
     // 單一實例：named mutex 由 OS 在程序結束時釋放；第二份直接提示後離開
     let _single = unsafe { CreateMutexW(None, false, w!("Local\\pz-ime-guard-single-instance")) };
     if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
-        unsafe { MessageBoxW(None, &HSTRING::from(s.already_running), w!("pz-ime-guard"), MB_OK | MB_ICONINFORMATION) };
+        if !from_startup {
+            unsafe { MessageBoxW(None, &HSTRING::from(s.already_running), w!("pz-ime-guard"), MB_OK | MB_ICONINFORMATION) };
+        }
         return;
     }
     let about = MenuItem::new(format!("pz-ime-guard {} — MinidoracatIMEGuardFor42", env!("CARGO_PKG_VERSION")), false, None);
@@ -541,8 +894,30 @@ fn main() {
     let state_dir = state_dir();
     let updates = CheckMenuItem::new(s.menu_check_updates, true, setting(&state_dir, "check_updates"), None);
     let restore = CheckMenuItem::new(s.menu_restore_desktop, true, setting(&state_dir, "restore_desktop"), None);
-    let menu = Menu::with_items(&[&about, &workshop, &github, &restore, &updates, &PredefinedMenuItem::separator(), &pause, &quit])
-        .expect("tray menu");
+    // 開機自動啟動：唯一真相是 Startup 資料夾裡的捷徑本身，不另外存設定，預設沒有捷徑＝關
+    // exe 搬過家就就地改寫捷徑（已經指向本 exe 時 set_enabled 完全不寫檔）。修不動就把錯誤攤開、
+    // 選項停用：與其給一個「以為還會自動啟動」的勾，不如講清楚它現在指向別的地方。
+    let mut startup_state = startup::enabled();
+    if startup_state.as_ref().is_ok_and(|on| *on) {
+        startup_state = startup::set_enabled(true).and_then(|()| startup::enabled()); // 改寫後回讀確認
+    }
+    let startup_item = match &startup_state {
+        Ok(on) => CheckMenuItem::new(s.menu_startup, true, *on, None),
+        // 讀不到真實狀態就不能給一個會誤導的勾：停用該項，並把技術細節直接寫在字面上
+        Err(e) => CheckMenuItem::new(format!("{} — {e}", s.menu_startup), false, false, None),
+    };
+    let menu = Menu::with_items(&[
+        &about,
+        &workshop,
+        &github,
+        &restore,
+        &startup_item,
+        &updates,
+        &PredefinedMenuItem::separator(),
+        &pause,
+        &quit,
+    ])
+    .expect("tray menu");
     let mut status = Status::NoGame;
     let tray: TrayIcon = TrayIconBuilder::new()
         .with_menu(Box::new(menu))
@@ -588,6 +963,15 @@ fn main() {
             if id == updates.id() || id == restore.id() {
                 save_settings(&state_dir, updates.is_checked(), restore.is_checked());
             }
+            if id == startup_item.id() {
+                let want = startup_item.is_checked();
+                if let Err(e) = startup::set_enabled(want) {
+                    let text = s.startup_failed.replace("{error}", &e);
+                    unsafe { MessageBoxW(None, &HSTRING::from(text), w!("pz-ime-guard"), MB_OK | MB_ICONWARNING) };
+                    // 做不到就把勾勾撥回真實狀態，別讓它停在騙人的位置
+                    startup_item.set_checked(startup::enabled().unwrap_or(false));
+                }
+            }
         }
         if updates.is_checked() && last_update_check.is_none_or(|t| t.elapsed() >= UPDATE_EVERY) {
             last_update_check = Some(Instant::now());
@@ -606,8 +990,8 @@ fn main() {
             let _ = tray.set_icon(Some(icon(status)));
             let _ = tray.set_tooltip(Some(status.text(s)));
         }
-        // PZ 沒開時沒有東西要守，放慢到 500 ms 省得一直掃視窗
-        let wait = if status == Status::NoGame { TICK * 5 } else { TICK };
+        // PZ 沒開時沒有東西要守，放慢到 500 ms 省得一直掃視窗；還原進行中除外（關遊戲後正是這條路）
+        let wait = if status == Status::NoGame && !guard.restoring() { TICK * 5 } else { TICK };
         match watch {
             Some(handle) => unsafe {
                 let woke = MsgWaitForMultipleObjects(Some(&[handle]), false, wait.as_millis() as u32, QS_ALLINPUT);
@@ -662,5 +1046,302 @@ mod update_tests {
         assert!(!is_newer("0.1.0", "0.1.0"));
         assert!(!is_newer("0.0.9", "0.1.0"));
         assert!(is_newer("v42.20.4-0.2.0".rsplit('-').next().unwrap(), "0.1.1"));
+    }
+}
+
+/// 還原與退出的狀態轉移。Win32 的部分（GetForegroundWindow／GetKeyboardLayout／PostMessage）留在 tick，
+/// 這裡測的是 tick 餵進來的觀察值怎麼變成「送不送、送給誰、送幾次」。
+#[cfg(test)]
+mod restore_tests {
+    use super::*;
+
+    pub(super) const SAFE: usize = 0x0409_0409; // en-US
+    pub(super) const IME: usize = 0x0404_0404; // 繁中注音
+    const DE: usize = 0x0407_0407; // 玩家自己改去的第三種配置
+
+    pub(super) fn hkl(v: usize) -> HKL {
+        HKL(v as *mut core::ffi::c_void)
+    }
+    fn th(window: isize) -> u32 {
+        1000 + window as u32
+    }
+    pub(super) fn fg(window: isize, layout: usize) -> Option<Foreground> {
+        Some(Foreground { window, thread: th(window), layout: hkl(layout) })
+    }
+    pub(super) fn post(window: isize, layout: usize) -> Step {
+        Step::Post { window, thread: th(window), layout: hkl(layout) }
+    }
+    pub(super) fn ms(n: u64) -> Duration {
+        Duration::from_millis(n)
+    }
+
+    /// 桌面本來用 IME、PZ 被我們切成 en-US、然後玩家離開：回到一個待得夠久的前景才還原。
+    fn armed(t: Instant) -> Restorer {
+        let mut r = Restorer::default();
+        r.observe(t, fg(1, IME), hkl(SAFE), true);
+        r.observe(t + RESTORE_SETTLE, fg(1, IME), hkl(SAFE), true); // 待滿才算數
+        assert_eq!(r.desktop, Some(hkl(IME)));
+        r.took_over();
+        r.left();
+        r
+    }
+
+    #[test]
+    fn restore_waits_for_a_settled_foreground_then_confirms_by_read_back() {
+        let t = Instant::now();
+        let mut r = armed(t);
+        // 過渡狀態（沒有前景、前景還是關程序中的 PZ、Alt+Tab 切換器）不起算時鐘、也不吃掉待還原
+        assert_eq!(r.observe(t + ms(400), None, hkl(SAFE), true), Step::Nothing);
+        assert_eq!(r.observe(t + ms(500), fg(9, SAFE), hkl(SAFE), true), Step::Nothing);
+        assert_eq!(r.observe(t + ms(600), fg(7, SAFE), hkl(SAFE), true), Step::Nothing);
+        // 連兩輪同一個 HWND 不算穩定：目錄變更通知可以在 1 ms 內叫醒第二輪
+        assert_eq!(r.observe(t + ms(601), fg(7, SAFE), hkl(SAFE), true), Step::Nothing);
+        assert_eq!(r.observe(t + ms(700), fg(7, SAFE), hkl(SAFE), true), Step::Nothing);
+        // 真的待滿 RESTORE_SETTLE 才送，而且只送給它
+        assert_eq!(r.observe(t + ms(900), fg(7, SAFE), hkl(SAFE), true), post(7, IME));
+        // 回讀：配置真的回來了 → 責任結束，之後不再動
+        assert_eq!(r.observe(t + ms(1000), fg(7, IME), hkl(SAFE), true), Step::Nothing);
+        assert!(r.pending.is_none() && !r.owed);
+        assert_eq!(r.observe(t + ms(1400), fg(7, SAFE), hkl(SAFE), true), Step::Nothing);
+    }
+
+    #[test]
+    fn restore_retries_a_bounded_number_of_times_then_gives_up() {
+        let t = Instant::now();
+        let mut r = armed(t);
+        let mut posts = 0;
+        for step in 0..=40u64 {
+            if r.observe(t + ms(600 + step * 100), fg(7, SAFE), hkl(SAFE), true) != Step::Nothing {
+                posts += 1;
+            }
+        }
+        assert_eq!(posts, RESTORE_TRIES, "請求 ≠ 已接受：重送有上限，不能一直吵");
+        assert!(r.pending.is_none());
+    }
+
+    #[test]
+    fn a_long_close_wait_does_not_burn_the_give_up_budget() {
+        let t = Instant::now();
+        let mut r = armed(t);
+        // 關程序等待：GameWindow.exit() 存檔／關 Steam／壓日誌期間前景一直是 PZ 自己（餵 None）
+        for step in 1..=60u64 {
+            assert_eq!(r.observe(t + ms(step * 1000), None, hkl(SAFE), true), Step::Nothing);
+        }
+        // 視窗終於消失、桌面回來：責任還在，照樣還原
+        r.observe(t + ms(61_000), fg(7, SAFE), hkl(SAFE), true);
+        assert_eq!(r.observe(t + ms(61_400), fg(7, SAFE), hkl(SAFE), true), post(7, IME));
+    }
+
+    #[test]
+    fn restore_window_starts_at_the_settled_foreground_not_at_leaving() {
+        let t = Instant::now();
+        let mut r = armed(t);
+        // 離開後 1.9 秒前景才終於出現——舊寫法這裡已經逾時，現在才開始算
+        r.observe(t + ms(1900), fg(7, SAFE), hkl(SAFE), true);
+        assert_eq!(r.observe(t + ms(2300), fg(7, SAFE), hkl(SAFE), true), post(7, IME));
+        // 但穩定之後就有時限：兩秒內沒生效就收手，不要幾秒後才突然改玩家的鍵盤
+        assert_eq!(r.observe(t + ms(4500), fg(7, SAFE), hkl(SAFE), true), Step::Nothing);
+        assert!(r.pending.is_none());
+    }
+
+    #[test]
+    fn unstable_foreground_forever_eventually_gives_up() {
+        let t = Instant::now();
+        let mut r = armed(t);
+        for step in 1..=20u64 {
+            assert_eq!(r.observe(t + ms(step * 1000), fg(step as isize, SAFE), hkl(SAFE), true), Step::Nothing);
+        }
+        assert!(r.pending.is_none(), "前景一直換就放棄，不要無限期掛著等機會");
+    }
+
+    #[test]
+    fn pausing_drops_the_obligation_so_leaving_later_never_fires_a_late_restore() {
+        let t = Instant::now();
+        let mut r = armed(t);
+        r.cancel(); // 暫停／取消「還原」選項
+        assert!(!r.owed, "取消的是責任本身，不只是這一次的待還原");
+        r.left(); // 暫停期間玩家切出去，恢復後那一輪才走到這裡
+        r.observe(t + ms(400), fg(7, SAFE), hkl(SAFE), true);
+        assert_eq!(r.observe(t + ms(800), fg(7, SAFE), hkl(SAFE), true), Step::Nothing);
+        assert!(r.pending.is_none(), "取消後不得重新武裝");
+    }
+
+    #[test]
+    fn turning_the_option_off_mid_flight_drops_it_and_going_back_into_the_game_too() {
+        let t = Instant::now();
+        // 選項當場被關掉：這一輪就放掉，不會等一下才補送
+        let mut r = armed(t);
+        r.observe(t + ms(400), fg(7, SAFE), hkl(SAFE), false);
+        assert_eq!(r.observe(t + ms(800), fg(7, SAFE), hkl(SAFE), true), Step::Nothing);
+        // 玩家又切回 PZ：這次的待還原作廢（下次離開再重新起算）
+        let mut r = armed(t);
+        r.in_game();
+        r.observe(t + ms(400), fg(7, SAFE), hkl(SAFE), true);
+        assert_eq!(r.observe(t + ms(800), fg(7, SAFE), hkl(SAFE), true), Step::Nothing);
+    }
+
+    #[test]
+    fn no_takeover_means_no_restore() {
+        let t = Instant::now();
+        let mut r = Restorer::default();
+        r.observe(t, fg(1, IME), hkl(SAFE), true);
+        r.observe(t + RESTORE_SETTLE, fg(1, IME), hkl(SAFE), true);
+        r.left(); // 沒 took_over()：這一局從來沒切過 PZ
+        r.observe(t + ms(400), fg(7, SAFE), hkl(SAFE), true);
+        assert_eq!(r.observe(t + ms(800), fg(7, SAFE), hkl(SAFE), true), Step::Nothing);
+        assert!(r.pending.is_none(), "沒切過就沒有還原責任，不能把配置推給桌面");
+    }
+
+    #[test]
+    fn a_layout_the_player_picked_himself_wins_over_our_intent() {
+        let t = Instant::now();
+        let mut r = armed(t);
+        // 玩家離開 PZ 後自己按 Alt+Shift 切到第三種配置
+        r.observe(t + ms(400), fg(7, DE), hkl(SAFE), true);
+        assert_eq!(r.observe(t + ms(800), fg(7, DE), hkl(SAFE), true), Step::Nothing);
+        assert!(r.pending.is_none() && !r.owed);
+        assert_eq!(r.desktop, Some(hkl(DE)), "之後要還原的是他新選的那個");
+    }
+
+    #[test]
+    fn a_read_back_that_lands_after_leaving_still_arms_the_restore() {
+        let t = Instant::now();
+        let mut r = Restorer::default();
+        r.observe(t, fg(1, IME), hkl(SAFE), true);
+        r.observe(t + RESTORE_SETTLE, fg(1, IME), hkl(SAFE), true);
+        // 送出切換的下一輪玩家就 alt-tab 了，這時還沒回讀到，責任還沒成立
+        r.left();
+        r.observe(t + ms(400), fg(7, SAFE), hkl(SAFE), true);
+        r.took_over(); // 回讀確認落在離開之後（tick 會對還活著的 PZ 視窗繼續確認）
+        r.observe(t + ms(500), fg(7, SAFE), hkl(SAFE), true);
+        assert_eq!(r.observe(t + ms(800), fg(7, SAFE), hkl(SAFE), true), post(7, IME));
+    }
+
+    #[test]
+    fn an_empty_or_unreadable_exit_file_never_advances_the_watermark() {
+        let t0 = SystemTime::UNIX_EPOCH;
+        let t1 = t0 + Duration::from_secs(1);
+        let t2 = t0 + Duration::from_secs(2);
+        // MOD 先截斷再寫，中間那一瞬間是空檔：認成「這個版本看過了」會整個漏掉退出訊號
+        assert_eq!(exit_verdict(Some(""), t1, t0), (ExitSignal::None, t0));
+        assert_eq!(exit_verdict(None, t1, t0), (ExitSignal::None, t0));
+        // 同一個版本下一輪讀到完整內容，照樣認得出來
+        assert_eq!(exit_verdict(Some("1\n"), t1, t0), (ExitSignal::Quitting, t1));
+        // "0" 不是「沒事」，是「新的一局開始了」
+        assert_eq!(exit_verdict(Some("0"), t2, t0), (ExitSignal::Reset, t2));
+        // 水位之下（本工具啟動前寫的）一律不認：上一局的殘留不會停守下一局
+        assert_eq!(exit_verdict(Some("1"), t1, t2), (ExitSignal::None, t2));
+    }
+
+    #[test]
+    fn exit_latch_holds_for_the_window_that_quit_and_never_leaks_into_the_next_game() {
+        let mut latch = ExitLatch::default();
+        assert!(!latch.update(Some(5), ExitSignal::None));
+        assert!(latch.update(Some(5), ExitSignal::Quitting), "訊號一到就鎖存");
+        assert!(latch.update(Some(5), ExitSignal::None), "視窗還在（存檔／關 Steam 中）也不回頭當遊戲中");
+        assert!(!latch.update(None, ExitSignal::None), "視窗消失＝解除");
+        assert!(!latch.update(Some(7), ExitSignal::None), "下一局是乾淨的");
+        // 沒有遊戲視窗時被消費掉的殘留旗標不會黏到下一局
+        let mut stale = ExitLatch::default();
+        assert!(!stale.update(None, ExitSignal::Quitting));
+        assert!(!stale.update(Some(3), ExitSignal::None));
+    }
+
+    /// 工具暫停 → 上一局的 "1" 沒被處理 → 新的一局已經開窗 → 解除暫停那一輪才讀到舊的 "1"，
+    /// 鎖在新視窗上。MOD 的 OnGameBoot "0" 必須把它解開，否則新的一局永遠停在 Closing。
+    #[test]
+    fn a_stale_quit_flag_latched_onto_a_fresh_game_is_released_by_the_next_boot_reset() {
+        let mut latch = ExitLatch::default();
+        assert!(latch.update(Some(9), ExitSignal::Quitting), "解除暫停那一輪讀到舊的 1");
+        assert!(latch.update(Some(9), ExitSignal::None));
+        assert!(!latch.update(Some(9), ExitSignal::Reset), "OnGameBoot 的 0 解鎖");
+        assert!(!latch.update(Some(9), ExitSignal::None), "解開之後不會再滑回 Closing");
+        // 同一局之後真的按退出，仍然鎖到視窗消失為止
+        assert!(latch.update(Some(9), ExitSignal::Quitting));
+        assert!(latch.update(Some(9), ExitSignal::None));
+        assert!(!latch.update(None, ExitSignal::None));
+    }
+
+    #[test]
+    fn a_takeover_is_consumed_on_confirmation_and_dropped_on_pause() {
+        let mut t = Takeover::default();
+        t.requested(5);
+        assert!(!t.confirm(5, false), "請求 ≠ 已接受");
+        assert!(!t.confirm(9, true), "別的視窗不算");
+        assert!(t.confirm(5, true));
+        assert!(!t.confirm(5, true), "確認過就消費掉，不能再認第二次");
+        t.requested(5);
+        t.forget();
+        assert!(!t.confirm(5, true), "丟掉的請求不得在之後補成責任");
+    }
+}
+
+/// Guard 層的整合：把 tick 的接線（Win32 以外的部分）照實跑一遍，驗「送出→回讀→暫停→切出」
+/// 這種跨元件順序，不只單看 Restorer。
+#[cfg(test)]
+mod flow_tests {
+    use super::restore_tests::*;
+    use super::*;
+
+    const PZ: isize = 77;
+
+    /// 桌面本來用 IME，然後玩家進 PZ、我們把它切成 en-US 並回讀確認。
+    fn in_game(t: Instant, safe: HKL) -> Guard {
+        let mut g = Guard::new();
+        g.away_tick(t, None, fg(1, IME), safe, true);
+        g.away_tick(t + RESTORE_SETTLE, None, fg(1, IME), safe, true);
+        assert_eq!(g.restorer.desktop, Some(hkl(IME)));
+        g.guard_tick(PZ, true, true, false); // 送出切換
+        g.guard_tick(PZ, true, false, true); // 下一輪回讀確認
+        assert!(g.restorer.owed);
+        g
+    }
+
+    #[test]
+    fn the_normal_alt_tab_path_restores_end_to_end() {
+        let t = Instant::now();
+        let safe = hkl(SAFE);
+        let mut g = in_game(t, safe);
+        g.away_tick(t + ms(400), Some((PZ, false)), fg(7, SAFE), safe, true);
+        assert_eq!(g.away_tick(t + ms(800), Some((PZ, false)), fg(7, SAFE), safe, true), post(7, IME));
+    }
+
+    #[test]
+    fn pausing_then_leaving_never_resurrects_the_obligation_from_an_old_request() {
+        let t = Instant::now();
+        let safe = hkl(SAFE);
+        let mut g = in_game(t, safe);
+        g.disown(); // 暫停
+        assert!(!g.restorer.owed);
+        // 暫停期間玩家切出去；解除暫停後這幾輪 PZ 視窗還在、而且還是 en-US
+        assert_eq!(g.away_tick(t + ms(400), Some((PZ, true)), fg(7, SAFE), safe, true), Step::Nothing);
+        assert_eq!(g.away_tick(t + ms(800), Some((PZ, true)), fg(7, SAFE), safe, true), Step::Nothing);
+        assert!(!g.restorer.owed, "暫停丟掉的責任不得靠舊的『已送出切換』復活");
+    }
+
+    #[test]
+    fn turning_restore_off_and_on_again_does_not_pick_up_the_old_obligation() {
+        let t = Instant::now();
+        let safe = hkl(SAFE);
+        let mut g = in_game(t, safe);
+        g.guard_tick(PZ, false, false, true); // 玩家把「離開時還原」關掉
+        assert!(!g.restorer.owed);
+        // 馬上又打開：舊的那一次切換不算數，要等下一次真的切換＋回讀才重新背責任
+        g.away_tick(t + ms(400), Some((PZ, true)), fg(7, SAFE), safe, true);
+        assert_eq!(g.away_tick(t + ms(800), Some((PZ, true)), fg(7, SAFE), safe, true), Step::Nothing);
+    }
+
+    #[test]
+    fn a_read_back_that_only_lands_after_alt_tab_still_restores() {
+        let t = Instant::now();
+        let safe = hkl(SAFE);
+        let mut g = Guard::new();
+        g.away_tick(t, None, fg(1, IME), safe, true);
+        g.away_tick(t + RESTORE_SETTLE, None, fg(1, IME), safe, true);
+        g.guard_tick(PZ, true, true, false); // 送出切換，這一輪還沒被接受
+        // 玩家立刻 alt-tab：PZ 視窗還在、配置已經變成 en-US，責任在離開之後才確認
+        g.away_tick(t + ms(400), Some((PZ, true)), fg(7, SAFE), safe, true);
+        assert!(g.restorer.owed);
+        assert_eq!(g.away_tick(t + ms(800), Some((PZ, false)), fg(7, SAFE), safe, true), post(7, IME));
     }
 }
