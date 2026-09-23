@@ -55,14 +55,10 @@ Windows 上只要中文／日文／韓文輸入法處於組字模式，按下的
 
 工具沒有安裝程式。若曾勾「登入 Windows 時自動啟動」，先取消勾選再結束；已經刪掉 exe、選單開不了的話，到「啟動」資料夾刪掉 `pz-ime-guard.lnk`（檔案總管網址列輸入 `shell:startup`）。然後刪掉 `pz-ime-guard-*.exe`。它不寫登錄檔。`%USERPROFILE%\Zomboid\Lua\MinidoracatIMEGuard\` 裡可能留下 `state.txt`、`heartbeat.txt`、`settings.txt`、`first-run-done.txt`、`exiting.txt`、`running.txt`，可一併刪除。MOD 在 Workshop 取消訂閱即可。
 
-## Code signing policy
+## 簽章與隱私
 
-Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
-
-- **Committers and reviewers**: [Minidoracat](https://github.com/Minidoracat)（repo owner；本專案目前為單人維護，所有變更由 owner 提交）
-- **Approvers**: [Minidoracat](https://github.com/Minidoracat)（repo owner）
+- **未簽章**：exe 目前沒有程式碼簽章（SignPath Foundation 申請未通過，之後再申請），所以第一次執行會出現 SmartScreen 提示。每個 exe 都由 GitHub Actions 從本 repo 的 tag 建置（`.github/workflows/release.yml`），SHA-256 與 VirusTotal 報告附在 Release 頁。
 - **Privacy policy**: This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. The only network access is the optional update check (GitHub Releases API, on by default, can be disabled from the tray menu), which sends no user data.
-- 簽章的 exe 一律由 GitHub Actions 從本 repo 的 tag 建置（`.github/workflows/release.yml`），每個 Release 都須人工核准簽章；SHA-256 與 VirusTotal 報告附在 Release 頁。
 
 ## 作者
 
