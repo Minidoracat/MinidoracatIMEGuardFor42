@@ -19,7 +19,7 @@ Windows 上只要中文／日文／韓文輸入法在組字模式，每個按鍵
 [h2]🧰 怎麼用[/h2]
 [olist]
 [*] 訂閱並啟用本 MOD。
-[*] 到 [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42/releases/latest]GitHub Releases[/url] 下載 [b]pz-ime-guard.exe[/b]，執行。第一次會跳 SmartScreen「Windows 已保護您的電腦」（未簽章的正常提示）：點「其他資訊 → 仍要執行」，或先對 exe 右鍵 → 內容 → 勾「解除封鎖」。它沒有視窗，只在系統匣放一個鍵帽圖示（通常收在「^」隱藏區），右下角小燈：綠＝英文鍵盤、橘＝打字中已切回你的輸入法、灰＝沒找到 PZ 或已暫停、紅＝系統沒裝英文（美國）鍵盤。
+[*] 到 [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42/releases/latest]GitHub Releases[/url] 下載 [b]pz-ime-guard-版本號.exe[/b]，執行。第一次會跳 SmartScreen「Windows 已保護您的電腦」（未簽章的正常提示）：點「其他資訊 → 仍要執行」，或先對 exe 右鍵 → 內容 → 勾「解除封鎖」。它沒有視窗，只在系統匣放一個鍵帽圖示（通常收在「^」隱藏區），右下角小燈：綠＝英文鍵盤、橘＝打字中已切回你的輸入法、灰＝沒找到 PZ 或已暫停、紅＝系統沒裝英文（美國）鍵盤。
 [*] 開遊戲。進遊戲時若工具沒在跑會提醒一次。
 [/olist]
 建議打開 Windows「讓我為每個應用程式視窗設定不同的輸入法」，切換就只影響 PZ。

@@ -42,12 +42,17 @@ jobs:
           github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
           wait-for-completion: true
           output-artifact-directory: dist
-      - name: SHA-256 and signature check
+      # 簽章設定綁死 pz-ime-guard.exe，所以簽完才改名成帶版號的檔名（瀏覽器下載新版不會變成「(1)」，也看得出是哪一版）
+      - name: Versioned filename, SHA-256 and signature check
         shell: pwsh
+        env:
+          TAG: ${{ github.ref_name }}
         run: |
-          $exe = "dist/pz-ime-guard.exe"
-          (Get-FileHash $exe -Algorithm SHA256).Hash + "  pz-ime-guard.exe" | Out-File -Encoding ascii dist/pz-ime-guard.exe.sha256
-          $sig = Get-AuthenticodeSignature $exe
+          $name = "pz-ime-guard-$($env:TAG.Split('-')[-1]).exe"
+          Move-Item dist/pz-ime-guard.exe dist/$name
+          "EXE_NAME=$name" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          (Get-FileHash dist/$name -Algorithm SHA256).Hash + "  $name" | Out-File -Encoding ascii dist/$name.sha256
+          $sig = Get-AuthenticodeSignature dist/$name
           "signature: $($sig.Status) $($sig.SignerCertificate.Subject)"
       - name: Release notes from CHANGELOG
         shell: pwsh
@@ -61,10 +66,10 @@ jobs:
             $end = $start + 1; while ($end -lt $lines.Count -and $lines[$end] -notlike '## *') { $end++ }
             $section = $lines[$start..($end - 1)]
           }
-          $signed = (Get-AuthenticodeSignature dist/pz-ime-guard.exe).Status -eq 'Valid'
+          $signed = (Get-AuthenticodeSignature dist/$env:EXE_NAME).Status -eq 'Valid'
           $section += ""; $section += "Workshop：https://steamcommunity.com/sharedfiles/filedetails/?id=3802890539"
           $section += "示範影片：https://youtu.be/5q1bfbm3lgU"
-          $section += "**只訂閱 MOD 不會有效果**，請下載下方 Assets 的 `pz-ime-guard.exe` 執行。"
+          $section += "**只訂閱 MOD 不會有效果**，請下載下方 Assets 的 ``$env:EXE_NAME`` 執行。舊版還開著時直接開新版即可：新版會請舊版退出後接手（0.1.4 以前的舊版做不到，會提示你先從系統匣結束）。"
           if ($signed) { $section += "exe 已由 SignPath Foundation 簽章（發行者顯示 SignPath Foundation）。" }
           else { $section += "exe 未簽章，SmartScreen 出現時按「其他資訊 → 仍要執行」。" }
           Set-Content -Path release-notes.md -Encoding utf8 -Value ($section -join "`n")
@@ -75,14 +80,14 @@ jobs:
           name: ${{ github.ref_name }}
           body_path: release-notes.md
           files: |
-            dist/pz-ime-guard.exe
-            dist/pz-ime-guard.exe.sha256
+            dist/${{ env.EXE_NAME }}
+            dist/${{ env.EXE_NAME }}.sha256
       - name: VirusTotal scan
         id: vt
         uses: crazy-max/ghaction-virustotal@v4
         with:
           vt_api_key: ${{ secrets.VT_API_KEY }}
-          files: dist/pz-ime-guard.exe
+          files: dist/${{ env.EXE_NAME }}
       - name: Append VirusTotal link to release notes
         shell: pwsh
         env:

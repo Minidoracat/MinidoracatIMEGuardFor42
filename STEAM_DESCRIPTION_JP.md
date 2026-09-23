@@ -19,7 +19,7 @@ Windows では日本語などの IME が変換モードにあると、すべて�
 [h2]🧰 使い方[/h2]
 [olist]
 [*] この MOD をサブスクライブして有効化。
-[*] [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42/releases/latest]GitHub Releases[/url] から [b]pz-ime-guard.exe[/b] をダウンロードして実行。初回は SmartScreen の「Windows によって PC が保護されました」が出ます（未署名 exe の通常の表示）：「詳細情報 → 実行」を選ぶか、先に exe を右クリック → プロパティ → 「ブロックの解除」にチェック。ウィンドウはなく、タスクトレイにキーキャップのアイコンが出るだけです（通常は「^」の中）。右下の小さなランプが状態：緑＝英語配列、橙＝入力中（IME 復帰済み）、灰＝PZ 未検出または一時停止、赤＝英語（米国）キーボード未インストール。
+[*] [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42/releases/latest]GitHub Releases[/url] から [b]pz-ime-guard-<バージョン>.exe[/b] をダウンロードして実行。初回は SmartScreen の「Windows によって PC が保護されました」が出ます（未署名 exe の通常の表示）：「詳細情報 → 実行」を選ぶか、先に exe を右クリック → プロパティ → 「ブロックの解除」にチェック。ウィンドウはなく、タスクトレイにキーキャップのアイコンが出るだけです（通常は「^」の中）。右下の小さなランプが状態：緑＝英語配列、橙＝入力中（IME 復帰済み）、灰＝PZ 未検出または一時停止、赤＝英語（米国）キーボード未インストール。
 [*] ゲームを起動。ワールドに入った時にツールが動いていなければ一度だけ通知します。
 [/olist]
 Windows の「アプリ ウィンドウごとに異なる入力方式を設定する」を有効にすると、切替が PZ だけに限定されます。

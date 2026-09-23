@@ -12,6 +12,7 @@
 //!   state.txt      MOD 寫，"1"＝打字中、"0"＝沒有；空檔／其他內容視為未變
 //!   exiting.txt    MOD 寫，"1"＝玩家已確認關程序（視窗還會活很久），"0"／空＝正常；本工具讀到就消費掉
 //!   heartbeat.txt  本工具每 2 s 寫 epoch 秒；MOD 進遊戲時讀不到或過期就提醒玩家
+//!   running.txt    執行中那一份的版本號；較新版啟動時據此決定要不要請它退出（見 main）
 #![windows_subsystem = "windows"]
 
 use std::{
@@ -27,13 +28,13 @@ use tray_icon::{
 };
 use windows::{
     core::{w, BOOL, HSTRING},
-    Win32::Foundation::{GetLastError, ERROR_ALREADY_EXISTS, HWND, LPARAM, WAIT_OBJECT_0, WPARAM},
+    Win32::Foundation::{CloseHandle, GetLastError, ERROR_ALREADY_EXISTS, HANDLE, HWND, LPARAM, WAIT_OBJECT_0, WPARAM},
     Win32::Globalization::GetUserDefaultUILanguage,
     Win32::Storage::FileSystem::{
         FindFirstChangeNotificationW, FindNextChangeNotification, FILE_NOTIFY_CHANGE_LAST_WRITE, FILE_NOTIFY_CHANGE_SIZE,
     },
     Win32::UI::Input::KeyboardAndMouse::{GetKeyboardLayout, GetKeyboardLayoutList, HKL},
-    Win32::System::Threading::CreateMutexW,
+    Win32::System::Threading::{CreateEventW, CreateMutexW, OpenEventW, SetEvent, WaitForSingleObject, EVENT_MODIFY_STATE},
     Win32::UI::Shell::ShellExecuteW,
     Win32::UI::WindowsAndMessaging::{
         DispatchMessageW, EnumWindows, GetClassNameW, GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
@@ -186,6 +187,7 @@ struct Strings {
     typing: &'static str,
     no_safe_notice: &'static str,
     already_running: &'static str,
+    old_running: &'static str,
     menu_pause: &'static str,
     menu_quit: &'static str,
     menu_workshop: &'static str,
@@ -224,6 +226,8 @@ Open the download page?",
                      Windows Settings → Time & language → Language & region → Add a language → English (United States), or add the US keyboard under your current language's options.\n\n\
                      Open Settings now?",
     already_running: "pz-ime-guard is already running — check the system tray (^ overflow). This copy will exit.",
+    old_running: "An older pz-ime-guard is still running and could not be closed automatically.\n\n\
+                  Right-click its icon in the system tray (^ overflow) → Quit, then open this copy again.",
 };
 const TW: Strings = Strings {
     paused: "已暫停",
@@ -251,6 +255,8 @@ const TW: Strings = Strings {
                      請到 Windows 設定 → 時間與語言 → 語言與地區 → 新增語言 → English (United States)，或在「中文（台灣）」的語言選項裡新增「美式鍵盤」。\n\n\
                      要現在開啟設定嗎？",
     already_running: "pz-ime-guard 已經在執行中，請看系統匣（^ 隱藏區）。這個副本會直接結束。",
+    old_running: "舊版 pz-ime-guard 還在執行，無法自動關閉。\n\n\
+                  請在系統匣（^ 隱藏區）對它的圖示按右鍵 →「結束」，再重新開啟這一份。",
 };
 const CN: Strings = Strings {
     paused: "已暂停",
@@ -278,6 +284,8 @@ const CN: Strings = Strings {
                      请到 Windows 设置 → 时间和语言 → 语言和区域 → 添加语言 → English (United States)，或在「中文（简体，中国）」的语言选项里添加「美式键盘」。\n\n\
                      现在打开设置吗？",
     already_running: "pz-ime-guard 已经在运行中，请看系统托盘（^ 隐藏区）。此副本将直接退出。",
+    old_running: "旧版 pz-ime-guard 仍在运行，无法自动关闭。\n\n\
+                  请在系统托盘（^ 隐藏区）右键它的图标 →「退出」，然后重新打开这一份。",
 };
 const JP: Strings = Strings {
     paused: "一時停止中",
@@ -305,6 +313,8 @@ const JP: Strings = Strings {
                      Windows 設定 → 時刻と言語 → 言語と地域 → 言語の追加 → English (United States)、または「日本語」の言語オプションで「英語キーボード」を追加してください。\n\n\
                      今すぐ設定を開きますか？",
     already_running: "pz-ime-guard はすでに動作中です。タスクトレイ（^ の中）を確認してください。このコピーは終了します。",
+    old_running: "古いバージョンの pz-ime-guard が動作中で、自動で終了できませんでした。\n\n\
+                  タスクトレイ（^ の中）のアイコンを右クリック →「終了」してから、このコピーをもう一度開いてください。",
 };
 // 韓文由非母語者撰寫，待母語者校對
 const KO: Strings = Strings {
@@ -333,6 +343,8 @@ const KO: Strings = Strings {
                      Windows 설정 → 시간 및 언어 → 언어 및 지역 → 언어 추가 → English (United States), 또는 「한국어」 언어 옵션에서 「영어 키보드」를 추가하세요.\n\n\
                      지금 설정을 열까요?",
     already_running: "pz-ime-guard가 이미 실행 중입니다. 시스템 트레이(^ 안)를 확인하세요. 이 사본은 종료됩니다.",
+    old_running: "이전 버전의 pz-ime-guard가 실행 중이며 자동으로 종료하지 못했습니다.\n\n\
+                  시스템 트레이(^ 안)의 아이콘을 우클릭 →「종료」한 뒤 이 사본을 다시 여세요.",
 };
 
 fn strings() -> &'static Strings {
@@ -874,24 +886,65 @@ fn is_newer(candidate: &str, current: &str) -> bool {
     parse(candidate) > parse(current)
 }
 
+const QUIT_EVENT: windows::core::PCWSTR = w!("Local\\pz-ime-guard-quit");
+
+/// 單一實例：named mutex 由 OS 在程序結束時釋放。搶到就故意不關 handle；已有別份在跑就關掉自己的，免得拖住它釋放。
+fn claim_single_instance() -> bool {
+    unsafe {
+        let h = CreateMutexW(None, false, w!("Local\\pz-ime-guard-single-instance"));
+        if GetLastError() != ERROR_ALREADY_EXISTS {
+            return true;
+        }
+        if let Ok(h) = h {
+            let _ = CloseHandle(h);
+        }
+        false
+    }
+}
+
+/// 請正在跑的那一份退出（它收到事件就走和選單「結束」同一條路）。加入本機制之前的舊版沒有這個事件 → false。
+fn ask_running_to_quit() -> bool {
+    unsafe {
+        let Ok(ev) = OpenEventW(EVENT_MODIFY_STATE, false, QUIT_EVENT) else { return false };
+        let ok = SetEvent(ev).is_ok();
+        let _ = CloseHandle(ev);
+        ok
+    }
+}
+
 fn main() {
     let s = strings();
+    let state_dir = state_dir();
     // 開機自動啟動的那一份帶 --startup：第二實例要安靜（開機時彈對話框很煩），手動點開的照常提示
     let from_startup = std::env::args().any(|a| a == "--startup");
-    // 單一實例：named mutex 由 OS 在程序結束時釋放；第二份直接提示後離開
-    let _single = unsafe { CreateMutexW(None, false, w!("Local\\pz-ime-guard-single-instance")) };
-    if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
+    let say = |text: &str| {
         if !from_startup {
-            unsafe { MessageBoxW(None, &HSTRING::from(s.already_running), w!("pz-ime-guard"), MB_OK | MB_ICONINFORMATION) };
+            unsafe { MessageBoxW(None, &HSTRING::from(text), w!("pz-ime-guard"), MB_OK | MB_ICONINFORMATION) };
         }
-        return;
+    };
+    if !claim_single_instance() {
+        // 已有一份在跑：比本版舊就請它退出、等它放掉 mutex 後接手（開機捷徑也因此改指向本 exe）；
+        // 同版或更新就照舊提示後離開。沒有 quit 事件＝加入本機制之前的舊版，只能請玩家自己從系統匣結束。
+        let running = fs::read_to_string(state_dir.join("running.txt")).unwrap_or_default();
+        let has_quit_event = unsafe { OpenEventW(EVENT_MODIFY_STATE, false, QUIT_EVENT) }.map(|ev| unsafe { CloseHandle(ev) }).is_ok();
+        if has_quit_event && !is_newer(env!("CARGO_PKG_VERSION"), running.trim()) {
+            say(s.already_running);
+            return;
+        }
+        if !ask_running_to_quit() || !(0..50).any(|_| { std::thread::sleep(TICK); claim_single_instance() }) {
+            say(s.old_running);
+            return;
+        }
     }
+    // manual-reset：MsgWaitForMultipleObjects 喚醒時不會把它吃掉，迴圈尾端再查一次
+    let quit_event = unsafe { CreateEventW(None, true, false, QUIT_EVENT) }.ok();
+    let _ = fs::create_dir_all(&state_dir);
+    let _ = fs::write(state_dir.join("running.txt"), env!("CARGO_PKG_VERSION"));
     let about = MenuItem::new(format!("pz-ime-guard {} — MinidoracatIMEGuardFor42", env!("CARGO_PKG_VERSION")), false, None);
     let workshop = MenuItem::new(s.menu_workshop, true, None);
     let github = MenuItem::new(s.menu_github, true, None);
     let pause = CheckMenuItem::new(s.menu_pause, true, false, None);
     let quit = MenuItem::new(s.menu_quit, true, None);
-    let state_dir = state_dir();
     let updates = CheckMenuItem::new(s.menu_check_updates, true, setting(&state_dir, "check_updates"), None);
     let restore = CheckMenuItem::new(s.menu_restore_desktop, true, setting(&state_dir, "restore_desktop"), None);
     // 開機自動啟動：唯一真相是 Startup 資料夾裡的捷徑本身，不另外存設定，預設沒有捷徑＝關
@@ -943,6 +996,7 @@ fn main() {
     .ok();
     let (update_tx, update_rx) = mpsc::channel();
     let mut last_update_check: Option<Instant> = None;
+    let handles: Vec<HANDLE> = [watch, quit_event].into_iter().flatten().collect(); // watch 必須在第 0 位
     loop {
         pump_messages();
         while let Ok(event) = MenuEvent::receiver().try_recv() {
@@ -992,14 +1046,16 @@ fn main() {
         }
         // PZ 沒開時沒有東西要守，放慢到 500 ms 省得一直掃視窗；還原進行中除外（關遊戲後正是這條路）
         let wait = if status == Status::NoGame && !guard.restoring() { TICK * 5 } else { TICK };
-        match watch {
-            Some(handle) => unsafe {
-                let woke = MsgWaitForMultipleObjects(Some(&[handle]), false, wait.as_millis() as u32, QS_ALLINPUT);
-                if woke == WAIT_OBJECT_0 {
-                    let _ = FindNextChangeNotification(handle);
-                }
-            },
-            None => std::thread::sleep(wait),
+        unsafe {
+            let woke = MsgWaitForMultipleObjects(Some(&handles), false, wait.as_millis() as u32, QS_ALLINPUT);
+            if let Some(handle) = watch
+                && woke == WAIT_OBJECT_0
+            {
+                let _ = FindNextChangeNotification(handle);
+            }
+            if quit_event.is_some_and(|ev| WaitForSingleObject(ev, 0) == WAIT_OBJECT_0) {
+                return;
+            }
         }
     }
 }
