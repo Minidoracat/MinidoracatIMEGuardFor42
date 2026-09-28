@@ -3,55 +3,51 @@
 
 [hr][/hr]
 
-[b]⚠️ 這是兩件式 MOD：只訂閱不會有效果，還要下載配套的 Windows 小工具（見下方）。[/b]
+[b]⚠️ 兩件式 MOD：只訂閱不會有效果，還要下載配套的 Windows 小工具。[/b]
+玩遊戲時固定英文鍵盤，打字時切回你的輸入法。
 
-[b]🎮 單人／多人都可以用。[/b]單人：移動鍵不再被輸入法卡住，搜尋、命名等文字框會自動切回輸入法。[b]多人：伺服器必須把本 MOD 列進 mod 清單[/b]（PZ 連線時只載入伺服器清單上的 MOD），伺服器端本身不執行任何東西、不影響存檔。
+[h2]📦 需要安裝[/h2]
+[list]
+[*] [b]本 MOD[/b]：單人、多人都能用；多人需伺服器啟用本 MOD。
+[*] [b]配套工具 pz-ime-guard[/b]：從 GitHub Releases 下載，僅 Windows。
+[*] [b]支援版本：[/b]Build 42.20.4+
+[/list]
 
-[h2]✨ 這是什麼[/h2]
-輸入法守衛。玩遊戲時自動把 PZ 切到英文鍵盤，打字（聊天、搜尋、命名）時自動切回你原本的輸入法。注音、拼音、日文、韓文……任何 Windows 輸入法都適用。
-
-[h2]🧟 為什麼會被輸入法害死[/h2]
-Windows 上只要中文／日文／韓文輸入法在組字模式，每個按鍵都先交給輸入法，PZ 會直接忽略——WASD、Shift 跑步、空白、E 全部沒反應。而 PZ 的操作鍵剛好是切輸入法的熱鍵（Shift＋Alt、Ctrl＋空白），玩到一半就被切回去。官方已明講不會在遊戲端處理，這個 MOD 就是為此而生。
-
-[h2]🎬 35 秒示範影片[/h2]
-[url=https://youtu.be/5q1bfbm3lgU]https://youtu.be/5q1bfbm3lgU[/url]（下載 → 執行 → 遊戲內打中文 → 關聊天直接走動）
-
-[h2]🧰 怎麼用[/h2]
+[h2]🚀 快速上手[/h2]
 [olist]
 [*] 訂閱並啟用本 MOD。
-[*] 到 [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42/releases/latest]GitHub Releases[/url] 下載 [b]pz-ime-guard-版本號.exe[/b]，執行。第一次會跳 SmartScreen「Windows 已保護您的電腦」（未簽章的正常提示）：點「其他資訊 → 仍要執行」，或先對 exe 右鍵 → 內容 → 勾「解除封鎖」。它沒有視窗，只在系統匣放一個鍵帽圖示（通常收在「^」隱藏區），右下角小燈：綠＝英文鍵盤、橘＝打字中已切回你的輸入法、灰＝沒找到 PZ 或已暫停、紅＝系統沒裝英文（美國）鍵盤。
-[*] 開遊戲。進遊戲時若工具沒在跑會提醒一次。
+[*] 到 [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42/releases/latest]GitHub Releases[/url] 下載 pz-ime-guard 並執行。
+[*] 第一次會跳 SmartScreen，點「其他資訊 → 仍要執行」。
+[*] 系統匣出現鍵帽圖示後開遊戲，打字時會自動切換。
 [/olist]
-建議打開 Windows「讓我為每個應用程式視窗設定不同的輸入法」，切換就只影響 PZ。
+🎬 [b]35 秒示範影片：[/b][url=https://youtu.be/5q1bfbm3lgU]https://youtu.be/5q1bfbm3lgU[/url]
 
-[b]右鍵選項：[/b]可開關「切出遊戲時還原輸入法」（預設開）、「登入 Windows 時自動啟動」（預設關）與自動檢查更新。自動啟動只建立目前使用者的啟動捷徑，取消勾選即移除；刪除工具前請先取消勾選。本版退出改善需同時更新 MOD 與配套工具。
-
-[h2]🌐 支援的輸入法與語言[/h2]
+[h2]✨ 主要功能[/h2]
 [list]
-[*] [b]會守護的輸入法：[/b]中文（注音、倉頡、無蝦米、微軟／搜狗拼音、RIME…）、日文（Microsoft IME、Google 日本語入力…）、韓文——中、日有玩家實證，韓文依微軟文件確認同樣會攔鍵。越南文 Telex／VNI、印度語系 Phonetic 等 Windows 內建輸入法機制相同，尚未實機驗證。
-[*] [b]不介入：[/b]英文各國變體、俄、德、法、泰等純鍵盤配置——它們本來就沒這問題。
-[*] [b]介面語言：[/b]工具提示、選單與 MOD 內提示有繁中、簡中、日文、韓文，其餘顯示英文；Steam 頁面有英、繁、簡、日、韓。
+[*] [b]遊玩固定英文[/b]：移動與操作鍵不再被輸入法吃掉。
+[*] [b]打字自動切回[/b]：點進聊天、搜尋、命名欄，切回你在 PZ 用過的輸入法。
+[*] [b]中日韓輸入法[/b]：守護中文、日文、韓文輸入法，純鍵盤配置不介入。
+[*] [b]切出時還原[/b]：離開遊戲時還原桌面原本的輸入法。
+[*] [b]系統匣小燈[/b]：用顏色一眼看出目前的守護狀態。
+[*] [b]自動啟動與更新[/b]：可設定登入 Windows 時啟動，並自動檢查新版。
 [/list]
 
-[h2]🦀 為什麼用 Rust、為什麼開源[/h2]
+📖 [b]運作方式、小燈顏色、常見問題與已知限制：[/b][url=https://steamcommunity.com/workshop/filedetails/discussion/3802890539/586187095760095677/]IME Guard 完整說明：運作方式、常見問題與已知限制[/url]
+
+[h2]🔒 安全與開源[/h2]
 [list]
-[*] 單一 exe，不用裝 .NET、Java 或任何執行環境，下載即用。
-[*] 使用 Rust 開發，沒有遊戲程序注入；不讀取玩家按鍵。
-[*] 透過 Windows 公開 API 切換鍵盤，不裝鍵盤 hook、不改登錄檔。可選擇在離開 PZ 後還原其他前景視窗的輸入法，並透過 GitHub 檢查更新。MOD 本身是純 Lua，只寫打字與正常退出訊號到 Zomboid 資料夾。
-[*] 原始碼公開在 [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42]GitHub[/url]，任何人都能檢視、自行編譯比對。每一版 exe 都由 GitHub Actions 在乾淨環境建置，並自動送 VirusTotal 掃描，SHA-256 與掃描連結都在 Release 頁。exe 未做程式碼簽章，SmartScreen 可能提示「未知發行者」——不放心就自己 cargo build。
+[*] 原始碼公開在 [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42]GitHub[/url]。
+[*] 每版 exe 由 GitHub Actions 建置，並自動送 VirusTotal 掃描。
+[*] 不注入遊戲、不讀取你的按鍵。
 [/list]
 
-[h2]📋 MOD 資訊[/h2]
-[list]
-[*] [b]Mod ID:[/b] MinidoracatIMEGuardFor42
-[*] [b]支援版本:[/b] Build 42.20.4+
-[*] [b]單人 / 多人:[/b] 皆支援（多人需伺服器列入 mod 清單，見上方）
-[*] [b]平台:[/b] 工具僅 Windows；Mac／Linux 沒有這個問題
-[/list]
+[h2]🔗 Minidoracat 全系列[/h2]
+其他作品都在[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3809297109]Minidoracat 全系列收藏[/url]，依需求自選訂閱。
 
-[h2]💬 意見回饋與交流[/h2]
+[h2]💬 回報與交流[/h2]
 [list]
-[*] [url=https://discord.gg/Gur2V67]Discord 社群[/url]
+[*] [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42/issues]GitHub Issues[/url]
+[*] [url=https://discord.gg/Gur2V67]Discord[/url]
 [/list]
 
 [h2]☕ 支持作者[/h2]

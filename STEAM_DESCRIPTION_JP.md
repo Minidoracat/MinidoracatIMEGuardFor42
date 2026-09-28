@@ -3,54 +3,50 @@
 
 [hr][/hr]
 
-[b]⚠️ 2 つで 1 セットの MOD です。サブスクライブだけでは何も起きません。Windows 用の小さな連携ツールも必要です（下記参照）。[/b]
+[b]⚠️ 2 つで 1 セットの MOD です。サブスクライブだけでは何も起きず、Windows 用の小さな連携ツールも必要です。[/b]
+プレイ中は英語キーボードに固定し、文字を打つときは元の IME に自動で戻します。
 
-[b]🎮 シングル／マルチ両対応。[/b]シングル：移動キーが IME に奪われなくなり、検索や名前入力欄では IME に戻ります。[b]マルチ：サーバーの MOD リストに本 MOD を入れる必要があります[/b]（PZ はサーバーのリストにある MOD だけ読み込みます）。サーバー側では何もせず、セーブにも触れません。
+[h2]📦 必要なもの[/h2]
+[list]
+[*] [b]この MOD[/b]：シングル・マルチ両対応です。マルチではサーバー側で有効にする必要があります。
+[*] [b]連携ツール pz-ime-guard[/b]：GitHub Releases からダウンロードします。Windows 専用です。
+[*] [b]対応バージョン：[/b]Build 42.20.4+
+[/list]
 
-[h2]✨ これは何[/h2]
-プレイ中は PZ を英語キーボードに固定し、チャット・検索・名前入力などで文字を打ち始めた瞬間に元の IME へ戻します。Microsoft IME、Google 日本語入力、注音、拼音、ハングルなど Windows の IME なら何でも対応。
-
-[h2]🧟 なぜ IME で死ぬのか[/h2]
-Windows では日本語などの IME が変換モードにあると、すべてのキーがまず IME に渡され、PZ はそれを無視します——WASD、Shift ダッシュ、スペース、E が全部効かなくなります。しかも PZ の操作キーは Windows の IME 切替ホットキー（Shift+Alt、Ctrl+Space）そのものなので、プレイ中に勝手に切り替わります。開発元はゲーム側で対処しないと明言しています。この MOD はそのためのものです。
-
-[h2]🎬 35 秒デモ動画[/h2]
-[url=https://youtu.be/5q1bfbm3lgU]https://youtu.be/5q1bfbm3lgU[/url]（ダウンロード → 実行 → チャットで文字入力 → チャットを閉じてすぐ移動）
-
-[h2]🧰 使い方[/h2]
+[h2]🚀 使い方[/h2]
 [olist]
-[*] この MOD をサブスクライブして有効化。
-[*] [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42/releases/latest]GitHub Releases[/url] から [b]pz-ime-guard-<バージョン>.exe[/b] をダウンロードして実行。初回は SmartScreen の「Windows によって PC が保護されました」が出ます（未署名 exe の通常の表示）：「詳細情報 → 実行」を選ぶか、先に exe を右クリック → プロパティ → 「ブロックの解除」にチェック。ウィンドウはなく、タスクトレイにキーキャップのアイコンが出るだけです（通常は「^」の中）。右下の小さなランプが状態：緑＝英語配列、橙＝入力中（IME 復帰済み）、灰＝PZ 未検出または一時停止、赤＝英語（米国）キーボード未インストール。
-[*] ゲームを起動。ワールドに入った時にツールが動いていなければ一度だけ通知します。
+[*] この MOD をサブスクライブして有効にします。
+[*] [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42/releases/latest]GitHub Releases[/url] から pz-ime-guard をダウンロードして実行します。
+[*] 初回は SmartScreen が出るので「詳細情報 → 実行」を選びます。
+[*] タスクトレイにキーキャップのアイコンが出たら、ゲームを起動します。
 [/olist]
-Windows の「アプリ ウィンドウごとに異なる入力方式を設定する」を有効にすると、切替が PZ だけに限定されます。
+🎬 [b]35 秒デモ動画：[/b][url=https://youtu.be/5q1bfbm3lgU]https://youtu.be/5q1bfbm3lgU[/url]
 
-[b]右クリックメニュー：[/b]ゲームを離れたときの IME 復元（初期設定オン）、Windows サインイン時の自動起動（初期設定オフ）、更新の自動確認を切り替えられます。自動起動は現在のユーザーのスタートアップフォルダーにショートカットを作成します。ツールを削除する前にチェックを外してください。終了処理の改善には MOD と連携ツールの両方を更新してください。
-
-[h2]🌐 対応 IME と言語[/h2]
+[h2]✨ 主な機能[/h2]
 [list]
-[*] [b]保護対象の IME：[/b]中国語（注音・倉頡・嘸蝦米・Microsoft／搜狗拼音・RIME…）、日本語（Microsoft IME・Google 日本語入力…）、韓国語——中国語・日本語はプレイヤーの実証あり、韓国語は Microsoft の IME 資料で同じ挙動を確認。Windows 内蔵のベトナム語 Telex／VNI、インド系 Phonetic IME も仕組みは同じですが、ゲーム内では未検証です。
-[*] [b]関与しない：[/b]英語各種、ロシア語、ドイツ語、フランス語、タイ語などの通常のキーボード配列——もともとこの問題はありません。
-[*] [b]UI 言語：[/b]ツールのツールチップ・メニュー・ゲーム内通知は繁体中国語・簡体中国語・日本語・韓国語、それ以外は英語。Steam ページは英・繁・簡・日・韓。
+[*] [b]プレイ中は英語配列[/b]：移動や操作のキーが IME に奪われません。
+[*] [b]入力時は IME に復帰[/b]：チャット・検索・名前入力欄で、最後に使った IME に戻ります。
+[*] [b]日中韓の IME に対応[/b]：日本語・中国語・韓国語の IME を保護し、通常の配列には関与しません。
+[*] [b]離れたら元に戻す[/b]：ゲームを離れるとデスクトップの IME を復元します。
+[*] [b]トレイのランプ[/b]：色で現在の保護状態がひと目でわかります。
+[*] [b]自動起動と更新確認[/b]：Windows サインイン時の自動起動と、更新の自動確認ができます。
 [/list]
 
-[h2]🦀 なぜ Rust か、なぜオープンソースか[/h2]
+📖 [b]仕組み・ランプの色・よくある質問・既知の制限：[/b][url=https://steamcommunity.com/workshop/filedetails/discussion/3802890539/586187095760095692/]IME Guard Guide: How It Works, FAQ & Known Limitations[/url]（英語）
+
+[h2]🔒 安全性とオープンソース[/h2]
 [list]
-[*] 単一の exe。.NET や Java などのランタイムは不要です。
-[*] Rust で開発。ゲームへのコード注入やキー入力の読み取りは行いません。
-[*] Windows の公開 API で配列を切り替えます。キーボードフックやレジストリ変更はありません。PZ を離れた後の前面ウィンドウの IME 復元と、GitHub での更新確認は設定で切り替えられます。MOD 本体は純粋な Lua で、入力中と正常終了の信号を Zomboid フォルダーに書き込みます。
-[*] ソースは [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42]GitHub[/url] で公開。誰でも監査・自前ビルドできます。exe は毎回 GitHub Actions のクリーンな環境でビルドし、自動で VirusTotal に送信。SHA-256 とスキャン結果へのリンクは Release ページにあります。exe はコード署名していないため SmartScreen が「不明な発行元」と警告することがあります。不安なら cargo build してください。
+[*] ソースコードは [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42]GitHub[/url] で公開しています。
+[*] exe は毎回 GitHub Actions でビルドし、自動で VirusTotal に送信しています。
+[*] ゲームへのコード注入やキー入力の読み取りは一切しません。
 [/list]
 
-[h2]📋 MOD 情報[/h2]
-[list]
-[*] [b]Mod ID:[/b] MinidoracatIMEGuardFor42
-[*] [b]対応バージョン:[/b] Build 42.20.4+
-[*] [b]シングル / マルチ:[/b] 両対応（マルチはサーバーの MOD リストに要登録、上記参照）
-[*] [b]プラットフォーム:[/b] ツールは Windows 専用。macOS／Linux にはこの問題はありません
-[/list]
+[h2]🔗 Minidoracat の MOD 一覧[/h2]
+すべての MOD を[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3809297109]Minidoracat 全シリーズ コレクション[/url]にまとめています。必要なものを選んでサブスクライブしてください。
 
-[h2]💬 フィードバック[/h2]
+[h2]💬 不具合報告・交流[/h2]
 [list]
+[*] [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42/issues]GitHub Issues[/url]
 [*] [url=https://discord.gg/Gur2V67]Discord[/url]
 [/list]
 
