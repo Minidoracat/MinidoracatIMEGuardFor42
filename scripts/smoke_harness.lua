@@ -4,7 +4,7 @@
     lua scripts/smoke_harness.lua        （repo 根目錄執行；標準 Lua 5.x 即可）
 
 限制（必須誠實面對）：這是標準 Lua，不是遊戲的 Kahlua。
-- 標準 Lua 有 next/assert/xpcall，Kahlua 沒有——本 harness **測不出**誤用，
+- 標準 Lua 有 next/xpcall，Kahlua 沒有——本 harness **測不出**誤用，
   那由 scripts/verify_mod.py 的靜態掃描負責（發版前兩者都要跑）
 - 輸入法切換本身在外部工具（tools/pz-ime-guard），這裡只驗訊號端：「打字狀態變了才寫檔、寫的內容對、
   工具不在線時提醒一次、關程序的四條路徑會寫退出旗標而取消不會」。實機證據見 .omc/artifacts/e2e-*。
