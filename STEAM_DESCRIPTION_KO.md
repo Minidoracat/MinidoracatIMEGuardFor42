@@ -12,7 +12,7 @@
 [*] [b]보조 도구 pz-ime-guard[/b]: GitHub Releases에서 내려받습니다. Windows 전용입니다.
 [*] [b]지원 버전:[/b] Build 42.20.4+
 [*] [b]중간 추가·제거:[/b] 모두 가능
-[*] [b]지원 언어:[/b] 繁體中文, 简体中文, English, 日本語, 한국어
+[*] [b]지원 언어:[/b] 繁體中文, 简体中文, English, 日本語, 한국어, Русский, Español, Português, Türkçe, Français, Polski, Deutsch (중국어·영어·일본어 외의 언어는 AI 번역입니다. 오류 제보를 환영합니다)
 [/list]
 
 [h2]🚀 사용 방법[/h2]

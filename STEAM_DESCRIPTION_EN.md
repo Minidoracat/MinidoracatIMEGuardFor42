@@ -12,7 +12,7 @@ It keeps PZ on an English keyboard while you play and switches back to your own 
 [*] [b]Companion tool pz-ime-guard[/b]: download from GitHub Releases. Windows only.
 [*] [b]Game version:[/b] Build 42.20.4+
 [*] [b]Add/remove mid-save:[/b] safe either way
-[*] [b]Languages:[/b] 繁體中文, 简体中文, English, 日本語, 한국어
+[*] [b]Languages:[/b] 繁體中文, 简体中文, English, 日本語, 한국어, Русский, Español, Português, Türkçe, Français, Polski, Deutsch (languages other than Chinese, English and Japanese are AI-translated; corrections welcome)
 [/list]
 
 [h2]🚀 Quick start[/h2]

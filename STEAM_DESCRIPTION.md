@@ -12,7 +12,7 @@
 [*] [b]配套工具 pz-ime-guard[/b]：從 GitHub Releases 下載，僅 Windows。
 [*] [b]支援版本：[/b]Build 42.20.4+
 [*] [b]中途加入／移除：[/b]都可以
-[*] [b]介面語言：[/b]繁體中文、简体中文、English、日本語、한국어
+[*] [b]介面語言：[/b]繁體中文、简体中文、English、日本語、한국어、Русский、Español、Português、Türkçe、Français、Polski、Deutsch（中英日以外為 AI 翻譯，歡迎回報）
 [/list]
 
 [h2]🚀 快速上手[/h2]
