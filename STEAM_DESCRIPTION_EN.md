@@ -11,6 +11,8 @@ It keeps PZ on an English keyboard while you play and switches back to your own 
 [*] [b]This mod[/b]: singleplayer and multiplayer; in multiplayer the server must enable it.
 [*] [b]Companion tool pz-ime-guard[/b]: download from GitHub Releases. Windows only.
 [*] [b]Game version:[/b] Build 42.20.4+
+[*] [b]Add/remove mid-save:[/b] safe either way
+[*] [b]Languages:[/b] 繁體中文, 简体中文, English, 日本語, 한국어
 [/list]
 
 [h2]🚀 Quick start[/h2]
