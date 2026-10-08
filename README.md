@@ -27,7 +27,7 @@ Windows 上只要中文／日文／韓文輸入法處於組字模式，按下的
 
 若你有開 Windows「設定 → 時間與語言 → 輸入 → 進階鍵盤設定 → 讓我為每個應用程式視窗設定不同的輸入法」，其他程式通常會保留各自的配置。未開啟時，離開遊戲會嘗試還原桌面輸入法（見上方）；不知道原配置或還原未成功時，桌面仍可能停在英文。
 
-限制：只支援 Windows；一台電腦同時開兩個 PZ 時只守第一個視窗；PZ 用 `-cachedir` 改了資料夾的話工具找不到訊號檔。
+限制：只支援 Windows；一台電腦同時開兩個 PZ 時只守第一個視窗；PZ 用 `-cachedir` 改了資料夾時，要指定工具的訊號目錄（見「開發」）。
 
 ## 運作方式
 
@@ -44,6 +44,7 @@ Windows 上只要中文／日文／韓文輸入法處於組字模式，按下的
 
 - Lua：`MOD/MinidoracatIMEGuardFor42/Contents/mods/MinidoracatIMEGuardFor42/42/media/lua/client/IMEGuard/`
 - 工具：`tools/pz-ime-guard/`，`cargo build --release` 產出 `target/release/pz-ime-guard.exe`（`.cargo/config.toml` 已設靜態 CRT）
+- 自訂快取／隔離測試：用 `--state-dir "<快取目錄>\Lua\MinidoracatIMEGuard"` 指定訊號目錄；未指定時仍使用 `%USERPROFILE%\Zomboid\Lua\MinidoracatIMEGuard`，一般啟動方式不變。指定目錄的工具不會接管既有實例或自動改寫開機捷徑，須由啟動者結束；鍵盤仍是共用資源，測試前須取得使用者授權並請使用者暫停既有工具，不能讓兩份同時守護同一個遊戲視窗。
 - 閘門（提交前都要綠）：`uv run scripts/verify_mod.py`、`lua scripts/smoke_harness.lua`
 - `link_workshop.bat`／`PZ_Test.bat`／`Publish_Workshop.bat` 用法同家族其他 MOD
 

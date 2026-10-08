@@ -8,7 +8,7 @@
 //! 桌面用的配置還回去（有限重試＋回讀確認，可關）。沒切過就沒有還原責任，絕不把 en-US 推給桌面。
 //! 不裝鍵盤 hook、不代送按鍵、不改登錄檔；除了上述還原之外不碰其他視窗。
 //!
-//! 檔案協定（%USERPROFILE%\Zomboid\Lua\MinidoracatIMEGuard\）：
+//! 檔案協定（預設 %USERPROFILE%\Zomboid\Lua\MinidoracatIMEGuard\；PZ 以 -cachedir 換了位置時用 --state-dir 指定）：
 //!   state.txt      MOD 寫，"1"＝打字中、"0"＝沒有；空檔／其他內容視為未變
 //!   exiting.txt    MOD 寫，"1"＝玩家已確認關程序（視窗還會活很久），"0"／空＝正常；本工具讀到就消費掉
 //!   heartbeat.txt  本工具每 2 s 寫 epoch 秒；MOD 進遊戲時讀不到或過期就提醒玩家
@@ -136,10 +136,23 @@ fn is_transient_shell(hwnd: HWND) -> bool {
     SHELLS.contains(&class.as_str())
 }
 
-/// ponytail: 只認 %USERPROFILE%\Zomboid；PZ 的 -cachedir 改路徑時要改這裡。
-fn state_dir() -> PathBuf {
+/// 玩家平常那一份的狀態目錄：PZ 預設的快取目錄 %USERPROFILE%\Zomboid。
+fn default_state_dir() -> PathBuf {
     let home = std::env::var_os("USERPROFILE").unwrap_or_default();
     PathBuf::from(home).join("Zomboid").join("Lua").join("MinidoracatIMEGuard")
+}
+
+/// `--state-dir <目錄>`：PZ 以 -cachedir 換了快取位置時（例如 E2E 隔離輪次），指定 MOD 寫訊號的那個 Lua 子目錄。
+/// 沒帶旗標＝Ok(None)；帶了旗標卻缺值回 Err，由 main 直接結束，免得退回預設目錄去碰玩家自己那一份。
+fn state_dir_arg(args: impl Iterator<Item = String>) -> Result<Option<PathBuf>, ()> {
+    let mut rest = args.skip_while(|a| a != "--state-dir");
+    if rest.next().is_none() {
+        return Ok(None);
+    }
+    match rest.next() {
+        Some(v) if !v.is_empty() && !v.starts_with("--") => Ok(Some(PathBuf::from(v))),
+        _ => Err(()),
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -641,9 +654,9 @@ struct Guard {
 }
 
 impl Guard {
-    fn new() -> Self {
+    fn new(dir: PathBuf) -> Self {
         let mut guard = Self {
-            dir: state_dir(),
+            dir,
             hwnd: None,
             safe: None,
             ime: None,
@@ -914,7 +927,10 @@ fn ask_running_to_quit() -> bool {
 
 fn main() {
     let s = strings();
-    let state_dir = state_dir();
+    let Ok(dir_arg) = state_dir_arg(std::env::args()) else { return };
+    // 指定目錄的是自動化（E2E）另開的一份：不佔、也不請走玩家那一份的單一實例，不改開機捷徑；由啟動者以自己的 PID 結束
+    let own_instance = dir_arg.is_some();
+    let state_dir = dir_arg.unwrap_or_else(default_state_dir);
     // 開機自動啟動的那一份帶 --startup：第二實例要安靜（開機時彈對話框很煩），手動點開的照常提示
     let from_startup = std::env::args().any(|a| a == "--startup");
     let say = |text: &str| {
@@ -922,7 +938,7 @@ fn main() {
             unsafe { MessageBoxW(None, &HSTRING::from(text), w!("pz-ime-guard"), MB_OK | MB_ICONINFORMATION) };
         }
     };
-    if !claim_single_instance() {
+    if !own_instance && !claim_single_instance() {
         // 已有一份在跑：比本版舊就請它退出、等它放掉 mutex 後接手（開機捷徑也因此改指向本 exe）；
         // 同版或更新就照舊提示後離開。沒有 quit 事件＝加入本機制之前的舊版，只能請玩家自己從系統匣結束。
         let running = fs::read_to_string(state_dir.join("running.txt")).unwrap_or_default();
@@ -937,7 +953,7 @@ fn main() {
         }
     }
     // manual-reset：MsgWaitForMultipleObjects 喚醒時不會把它吃掉，迴圈尾端再查一次
-    let quit_event = unsafe { CreateEventW(None, true, false, QUIT_EVENT) }.ok();
+    let quit_event = if own_instance { None } else { unsafe { CreateEventW(None, true, false, QUIT_EVENT) }.ok() };
     let _ = fs::create_dir_all(&state_dir);
     let _ = fs::write(state_dir.join("running.txt"), env!("CARGO_PKG_VERSION"));
     let about = MenuItem::new(format!("pz-ime-guard {} — MinidoracatIMEGuardFor42", env!("CARGO_PKG_VERSION")), false, None);
@@ -951,7 +967,7 @@ fn main() {
     // exe 搬過家就就地改寫捷徑（已經指向本 exe 時 set_enabled 完全不寫檔）。修不動就把錯誤攤開、
     // 選項停用：與其給一個「以為還會自動啟動」的勾，不如講清楚它現在指向別的地方。
     let mut startup_state = startup::enabled();
-    if startup_state.as_ref().is_ok_and(|on| *on) {
+    if !own_instance && startup_state.as_ref().is_ok_and(|on| *on) {
         startup_state = startup::set_enabled(true).and_then(|()| startup::enabled()); // 改寫後回讀確認
     }
     let startup_item = match &startup_state {
@@ -979,7 +995,7 @@ fn main() {
         .build()
         .expect("tray icon");
 
-    let mut guard = Guard::new();
+    let mut guard = Guard::new(state_dir.clone());
     first_run_notice(&guard.dir, s);
     if guard.safe.is_none() {
         no_safe_layout_notice(s);
@@ -1088,6 +1104,20 @@ mod tests {
         assert_eq!(pick_safe_layout(&[tw, de, gb]), Some(gb));
         assert_eq!(pick_safe_layout(&[tw, de]), Some(de));
         assert_eq!(pick_safe_layout(&[tw, hkl(0xE001_0411)]), None);
+    }
+
+    #[test]
+    fn state_dir_override_is_explicit_and_the_default_stays_the_players_folder() {
+        let args = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>().into_iter();
+        let run = r"D:\Zomboid_e2e\r1\client1\Lua\MinidoracatIMEGuard";
+        assert_eq!(state_dir_arg(args(&["pz-ime-guard.exe"])), Ok(None));
+        assert_eq!(state_dir_arg(args(&["pz-ime-guard.exe", "--startup"])), Ok(None));
+        assert_eq!(state_dir_arg(args(&["pz-ime-guard.exe", "--state-dir", run])), Ok(Some(PathBuf::from(run))));
+        assert_eq!(state_dir_arg(args(&["pz-ime-guard.exe", "--startup", "--state-dir", run])), Ok(Some(PathBuf::from(run))));
+        // 缺值不可退回預設目錄（那是玩家自己那一份）
+        assert_eq!(state_dir_arg(args(&["pz-ime-guard.exe", "--state-dir"])), Err(()));
+        assert_eq!(state_dir_arg(args(&["pz-ime-guard.exe", "--state-dir", "--startup"])), Err(()));
+        assert!(default_state_dir().ends_with(r"Zomboid\Lua\MinidoracatIMEGuard"));
     }
 }
 
@@ -1343,7 +1373,7 @@ mod flow_tests {
 
     /// 桌面本來用 IME，然後玩家進 PZ、我們把它切成 en-US 並回讀確認。
     fn in_game(t: Instant, safe: HKL) -> Guard {
-        let mut g = Guard::new();
+        let mut g = Guard::new(PathBuf::new());
         g.away_tick(t, None, fg(1, IME), safe, true);
         g.away_tick(t + RESTORE_SETTLE, None, fg(1, IME), safe, true);
         assert_eq!(g.restorer.desktop, Some(hkl(IME)));
@@ -1391,7 +1421,7 @@ mod flow_tests {
     fn a_read_back_that_only_lands_after_alt_tab_still_restores() {
         let t = Instant::now();
         let safe = hkl(SAFE);
-        let mut g = Guard::new();
+        let mut g = Guard::new(PathBuf::new());
         g.away_tick(t, None, fg(1, IME), safe, true);
         g.away_tick(t + RESTORE_SETTLE, None, fg(1, IME), safe, true);
         g.guard_tick(PZ, true, true, false); // 送出切換，這一輪還沒被接受
