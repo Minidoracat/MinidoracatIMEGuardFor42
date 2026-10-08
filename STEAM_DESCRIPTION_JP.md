@@ -12,7 +12,7 @@
 [*] [b]連携ツール pz-ime-guard[/b]：GitHub Releases からダウンロードします。Windows 専用です。
 [*] [b]対応バージョン：[/b]Build 42.20.4+
 [*] [b]途中追加・削除：[/b]どちらも可能
-[*] [b]対応言語：[/b]繁體中文、简体中文、English、日本語、한국어、Русский、Español、Português、Türkçe、Français、Polski、Deutsch（中国語・英語・日本語以外は AI 翻訳です。誤りがあればお知らせください）
+[*] [b]対応言語：[/b]繁體中文、简体中文、English、日本語、한국어、Русский、Español、Português、Türkçe、Français、Polski、Deutsch（翻訳の問題はお知らせください）
 [/list]
 
 [h2]🚀 使い方[/h2]

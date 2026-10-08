@@ -34,7 +34,7 @@ The tool looks at the language of the Windows keyboard layout, not the IME brand
 [*] [b]Guarded:[/b] Chinese (Bopomofo, Cangjie, Boshiamy, Microsoft/Sogou Pinyin, RIME…), Japanese (Microsoft IME, Google Japanese Input…), Korean. Chinese and Japanese confirmed by players, Korean by Microsoft's IME docs.
 [*] [b]Same mechanism, not verified in-game:[/b] built-in Vietnamese Telex/VNI, Indic Phonetic.
 [*] [b]Left alone:[/b] plain layouts (any English variant, Russian, German, French, Thai…) — they never had this problem.
-[*] [b]UI languages:[/b] in-game text in Traditional/Simplified Chinese, English, Japanese, Korean, Russian, Spanish, Portuguese, Turkish, French, Polish and German (Korean by a non-native speaker, the last seven AI-translated — corrections welcome). The tool (pz-ime-guard.exe) shows its tips and menus in Traditional/Simplified Chinese, Japanese, Korean, else English. Steam page in EN/繁/简/日/한.
+[*] [b]UI languages:[/b] in-game text in Traditional/Simplified Chinese, English, Japanese, Korean, Russian, Spanish, Portuguese, Turkish, French, Polish and German (please report any translation issues). The tool (pz-ime-guard.exe) shows its tips and menus in Traditional/Simplified Chinese, Japanese, Korean, else English. Steam page in EN/繁/简/日/한.
 [/list]
 
 [h2]🚥 Tray icon and lamp[/h2]
