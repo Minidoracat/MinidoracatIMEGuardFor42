@@ -2,9 +2,9 @@
 
 Project Zomboid Build 42 的輸入法守衛：玩遊戲時自動把 PZ 切到英文鍵盤，打字時切回你原本的輸入法。注音、拼音、日文、韓文……任何 Windows 輸入法都適用。單人、多人皆可；多人時伺服器要把本 MOD 列進 `Mods=`（PZ 只載入伺服器清單上的 MOD），伺服器端本身不執行任何東西。
 
-![示範：開聊天打中文、送出後直接走動](docs/demo.gif)
+[![介紹影片：Minidoracat IME Guard](https://img.youtube.com/vi/RGuE1GUEs9I/maxresdefault.jpg)](https://youtu.be/RGuE1GUEs9I)
 
-介紹影片：繁中 https://youtu.be/RGuE1GUEs9I ／ English https://youtu.be/bgYNjQxmhco ／ 日本語 https://youtu.be/p3kqWRNGraE
+介紹影片：[繁體中文](https://youtu.be/RGuE1GUEs9I) ／ [English](https://youtu.be/bgYNjQxmhco) ／ [日本語](https://youtu.be/p3kqWRNGraE) ／ [简体中文（bilibili）](https://www.bilibili.com/video/BV15Hpb6wEYf)
 
 ## 為什麼需要
 
@@ -15,15 +15,32 @@ Windows 上只要中文／日文／韓文輸入法處於組字模式，按下的
 這是**兩件式**：MOD 負責告訴工具「玩家現在是不是在打字」，工具負責切輸入法。只訂閱 MOD 不會有任何效果。
 
 1. 訂閱 [Workshop 上的 MOD](https://steamcommunity.com/sharedfiles/filedetails/?id=3802890539) 並啟用。
-2. 到 [Releases](https://github.com/Minidoracat/MinidoracatIMEGuardFor42/releases/latest) 下載 `pz-ime-guard-<版本>.exe`，放在任何地方執行。更新時舊版還開著也沒關係，直接開新版，它會請舊版退出後接手（0.1.4 以前的舊版會提示你先從系統匣結束）；舊版 exe 可自行刪除。第一次會跳 SmartScreen「Windows 已保護您的電腦」（未簽章 exe 的正常提示）：點「其他資訊 → 仍要執行」，或先對 exe 右鍵 → 內容 → 勾「解除封鎖」。它沒有視窗，只在系統匣放一個鍵帽圖示（Windows 11 通常收在「^」隱藏區，第一次啟動會彈一次說明），右下角的小燈代表狀態：
-   - 灰：還沒找到 PZ 視窗、PZ 不在前景、已暫停，或遊戲正在關閉（已停止守護）
-   - 綠：PZ 已在英文鍵盤，移動鍵安全
-   - 橘：你正在打字，已切回你的輸入法
-   - 紅：系統沒有安裝「英文（美國）」鍵盤，工具無事可做
-   右鍵圖示有：關於（版本）、Workshop 頁面、GitHub、切出遊戲時還原桌面的輸入法（預設開）、登入 Windows 時自動啟動（預設關）、自動檢查更新（預設開，啟動時與每日查一次 GitHub Releases，有新版問你要不要開下載頁）、暫停、結束。工具只會開一份，重複執行會提示後自動關閉。提示文字、選單與首次說明依 Windows 顯示語言自動切換（繁中／簡中／英文／日文／韓文）。
-   還原輸入法：離開或關掉遊戲時，嘗試還原進遊戲前觀察到的桌面輸入法。工具必須曾確認自己將 PZ 切到安全鍵盤，且知道桌面原本使用的非安全配置，才會還原；不知道原配置時不猜測。還原有重試次數與時間上限，無法保證所有程式都接受切換。
-   自動啟動：勾選後只在目前使用者的「啟動」資料夾放捷徑 `pz-ime-guard.lnk`，不寫登錄檔、不建服務。預設沒有這個捷徑。在「設定 → 應用程式 → 啟動」停用，不等於捷徑被刪，選單仍可能顯示已勾。把 exe 搬到別的地方後，捷徑還指著舊路徑；手動開一次新位置的工具（選項保持勾選）才會改寫。這是登入後啟動，不是一開機就跑，Windows 也可能晚一點才叫起來。
-3. 開遊戲。進遊戲時若工具沒在跑，畫面上會提醒一次。
+2. 到 [Releases](https://github.com/Minidoracat/MinidoracatIMEGuardFor42/releases/latest) 下載 `pz-ime-guard-<版本>.exe`，放在任何地方執行（沒有安裝程式）。
+   - 第一次會跳 SmartScreen「Windows 已保護您的電腦」（未簽章 exe 的正常提示）：點「其他資訊 → 仍要執行」，或先對 exe 右鍵 → 內容 → 勾「解除封鎖」。
+   - 中國大陸打不開 GitHub 時：先用 [Watt Toolkit](https://steampp.net/) 在「网络加速」勾選「GitHub」並按「启动加速」，再開下載頁。
+   - 更新時舊版還開著也沒關係，直接開新版，它會請舊版退出後接手（0.1.4 以前的舊版會提示你先從系統匣結束）；舊版 exe 可自行刪除。
+3. 確認系統匣出現鍵帽圖示後開遊戲。進遊戲時若工具沒在跑，畫面上會提醒一次。
+
+![示範：開聊天打中文、送出後直接走動](docs/demo.gif)
+
+### 系統匣圖示與小燈
+
+工具沒有視窗，只在系統匣放一個鍵帽圖示（Windows 11 通常收在「^」隱藏區，第一次啟動會彈一次說明），右下角的小燈代表狀態：
+
+- 灰：還沒找到 PZ 視窗、PZ 不在前景、已暫停，或遊戲正在關閉（已停止守護）
+- 綠：PZ 已在英文鍵盤，移動鍵安全
+- 橘：你正在打字，已切回你的輸入法
+- 紅：系統沒有安裝「英文（美國）」鍵盤，工具無事可做
+
+工具只會開一份，重複執行會提示後自動關閉。提示文字、選單與首次說明依 Windows 顯示語言自動切換（繁中／簡中／英文／日文／韓文）。
+
+### 右鍵選單與設定
+
+右鍵圖示依序是：關於（版本）、Workshop 頁面、GitHub、下面三個設定、暫停、結束。
+
+- **切出遊戲時還原桌面的輸入法**（預設開）：離開或關掉遊戲時，嘗試還原進遊戲前觀察到的桌面輸入法。工具必須曾確認自己將 PZ 切到安全鍵盤，且知道桌面原本使用的非安全配置，才會還原；不知道原配置時不猜測。還原有重試次數與時間上限，無法保證所有程式都接受切換。
+- **登入 Windows 時自動啟動**（預設關）：勾選後只在目前使用者的「啟動」資料夾放捷徑 `pz-ime-guard.lnk`，不寫登錄檔、不建服務。在「設定 → 應用程式 → 啟動」停用，不等於捷徑被刪，選單仍可能顯示已勾。把 exe 搬到別的地方後，捷徑還指著舊路徑；手動開一次新位置的工具（選項保持勾選）才會改寫。這是登入後啟動，不是一開機就跑，Windows 也可能晚一點才叫起來。
+- **自動檢查更新**（預設開）：啟動時與每日查一次 GitHub Releases，有新版問你要不要開下載頁。
 
 若你有開 Windows「設定 → 時間與語言 → 輸入 → 進階鍵盤設定 → 讓我為每個應用程式視窗設定不同的輸入法」，其他程式通常會保留各自的配置。未開啟時，離開遊戲會嘗試還原桌面輸入法（見上方）；不知道原配置或還原未成功時，桌面仍可能停在英文。
 
@@ -32,7 +49,7 @@ Windows 上只要中文／日文／韓文輸入法處於組字模式，按下的
 ## 運作方式
 
 - MOD（純 Lua，零 native）：每 frame 讀一次遊戲自己的「玩家正在打字」旗標，變化時把 `1`／`0` 寫進 `%USERPROFILE%\Zomboid\Lua\MinidoracatIMEGuard\state.txt`。玩家確認關掉遊戲（不是回主選單）時另寫 `exiting.txt` 的 `1`，讓工具在視窗還開著、遊戲還在收尾時就停止守護並開始還原。按視窗 X、當掉、工作管理員強制結束不會寫這個訊號，只能等視窗消失。工具只認自己啟動之後寫下的訊號，上一局留下的不會讓下一局停守。這個行為要新的 MOD 和新的 exe 一起才有；只更新一邊等於沒有。
-- 工具（Rust，單一靜態 exe，約 360 KB）：監看 `state.txt` 所在目錄，MOD 一寫檔就醒來（實測寫檔到 PZ 換好配置 16–39 ms；另每 100 ms 輪詢一次接前景切換與 Alt+Shift 劫持），依旗標決定該用哪個鍵盤配置，不對就對 PZ 視窗送 `WM_INPUTLANGCHANGEREQUEST`，下一輪回讀確認。還原桌面時，只對你切過去、且已穩定的那個前景視窗送有限次數的同樣請求並回讀確認；沒有還原目標就不動。不裝鍵盤 hook、不代送按鍵、不改登錄檔。每 2 秒寫 `heartbeat.txt` 讓 MOD 知道它活著。
+- 工具（Rust，單一靜態 exe，約 470 KB）：監看 `state.txt` 所在目錄，MOD 一寫檔就醒來（實測寫檔到 PZ 換好配置 16–39 ms；另每 100 ms 輪詢一次接前景切換與 Alt+Shift 劫持），依旗標決定該用哪個鍵盤配置，不對就對 PZ 視窗送 `WM_INPUTLANGCHANGEREQUEST`，下一輪回讀確認。還原桌面時，只對你切過去、且已穩定的那個前景視窗送有限次數的同樣請求並回讀確認；沒有還原目標就不動。不裝鍵盤 hook、不代送按鍵、不改登錄檔。每 2 秒寫 `heartbeat.txt` 讓 MOD 知道它活著。
 
 退場條件：[LWJGL #946](https://github.com/LWJGL/lwjgl3/issues/946) 的 GLFW IME 修正合併、且 PZ 升到帶該修正的 LWJGL 版本時，這個 MOD 就不再需要。
 
@@ -45,7 +62,7 @@ Windows 上只要中文／日文／韓文輸入法處於組字模式，按下的
 - Lua：`MOD/MinidoracatIMEGuardFor42/Contents/mods/MinidoracatIMEGuardFor42/42/media/lua/client/IMEGuard/`
 - 工具：`tools/pz-ime-guard/`，`cargo build --release` 產出 `target/release/pz-ime-guard.exe`（`.cargo/config.toml` 已設靜態 CRT）
 - 自訂快取／隔離測試：用 `--state-dir "<快取目錄>\Lua\MinidoracatIMEGuard"` 指定訊號目錄；未指定時仍使用 `%USERPROFILE%\Zomboid\Lua\MinidoracatIMEGuard`，一般啟動方式不變。指定目錄的工具不會接管既有實例或自動改寫開機捷徑，須由啟動者結束；鍵盤仍是共用資源，測試前須取得使用者授權並請使用者暫停既有工具，不能讓兩份同時守護同一個遊戲視窗。
-- 閘門（提交前都要綠）：`uv run scripts/verify_mod.py`、`lua scripts/smoke_harness.lua`
+- 閘門（提交前都要綠）：`uv run scripts/verify_mod.py`、`lua scripts/smoke_harness.lua`，以及工具的 `cargo build --release`、`cargo test --release`（`--manifest-path tools/pz-ime-guard/Cargo.toml`；exe 執行中時 link 會失敗，先關掉）
 - `link_workshop.bat`／`PZ_Test.bat`／`Publish_Workshop.bat` 用法同家族其他 MOD
 
 ## 版本
