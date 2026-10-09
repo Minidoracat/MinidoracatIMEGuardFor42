@@ -92,6 +92,9 @@ Windows 上只要中文／日文／韓文輸入法在組字模式，每個按鍵
 [*] 回主選單不算關遊戲：視窗還在，工具會繼續守護。
 [/list]
 
+[h3]中國大陸打不開 GitHub，下載不了工具？[/h3]
+先用 [url=https://steampp.net/]Watt Toolkit[/url]（免費、開源）：左側「网络加速」勾選「GitHub」，按「启动加速」，再打開 [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42/releases/latest]GitHub Releases[/url] 下載。工具提示有新版時開的也是 GitHub 下載頁，一樣先開加速。
+
 [h3]怎麼更新工具？[/h3]
 下載新版直接執行即可：舊版還開著也沒關係，新版會請舊版退出後接手，自動啟動也會改成啟動新版（很舊的版本無法自動接手，會提示你先從系統匣結束舊版）。舊版 exe 可以自行刪除。
 
