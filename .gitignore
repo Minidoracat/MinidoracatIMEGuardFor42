@@ -20,6 +20,7 @@ desktop.ini
 .idea/
 *.swp
 *.swo
+.playwright-cli/
 
 # 反編譯產物（預設放專案同層 ../pz-decompiled-reference/）
 pz-decompiled-reference/
@@ -36,6 +37,8 @@ luac.out
 
 # Rust 配套工具建置產物（Release 另外上傳 exe）
 tools/pz-ime-guard/target/
+# 另用 --target-dir 在 repo 根目錄建置時的輸出（例：工具 exe 執行中被鎖，改編到別處）
+/target/
 
 temp/
 tmp/
