@@ -4,7 +4,7 @@ Project Zomboid Build 42 的輸入法守衛：玩遊戲時自動把 PZ 切到英
 
 ![示範：開聊天打中文、送出後直接走動](docs/demo.gif)
 
-完整操作影片（下載 → 執行 → 遊戲內打中文，35 秒）：https://youtu.be/5q1bfbm3lgU
+介紹影片：繁中 https://youtu.be/RGuE1GUEs9I ／ English https://youtu.be/bgYNjQxmhco ／ 日本語 https://youtu.be/p3kqWRNGraE
 
 ## 為什麼需要
 

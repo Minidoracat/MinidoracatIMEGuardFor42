@@ -14,7 +14,7 @@ Everything the Workshop page leaves out: how it works, settings, safety, FAQ and
 [*] First launch shows SmartScreen's "Windows protected your PC" (normal for an unsigned exe): click "More info → Run anyway", or first tick "Unblock" in the exe's Properties.
 [*] When the keycap icon is in the tray, play. If the tool is not running when you enter a world, you get one reminder.
 [/olist]
-35-second demo: [url=https://youtu.be/5q1bfbm3lgU]https://youtu.be/5q1bfbm3lgU[/url] (download → run → type Chinese in chat → close chat and walk)
+Intro video: [url=https://youtu.be/bgYNjQxmhco]https://youtu.be/bgYNjQxmhco[/url] (the IME eats WASD → turn on the guard and run → type in search and chat → your desktop IME comes back when you leave)
 
 [h2]🧟 Why you need it[/h2]
 A Chinese, Japanese or Korean IME in composition mode takes every keystroke first and PZ drops it — WASD, Shift, Space, E all dead. PZ's controls also overlap Windows' IME hotkeys (Shift run + Alt sprint = Alt+Shift; Ctrl aim + Space = Ctrl+Space), so you get switched back mid-game. The developers will not handle this in-game; once the underlying fix reaches the game, this mod is no longer needed.

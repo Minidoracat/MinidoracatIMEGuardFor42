@@ -25,7 +25,7 @@ description=[*] Download pz-ime-guard from [url=https://github.com/Minidoracat/M
 description=[*] On first launch SmartScreen appears: click "More info → Run anyway".
 description=[*] Once the keycap icon shows up in the system tray, start the game.
 description=[/olist]
-description=🎬 [b]35-second demo:[/b] [url=https://youtu.be/5q1bfbm3lgU]https://youtu.be/5q1bfbm3lgU[/url]
+description=🎬 [b]Intro video:[/b] [url=https://youtu.be/bgYNjQxmhco]https://youtu.be/bgYNjQxmhco[/url]
 description=
 description=[h2]✨ Features[/h2]
 description=[list]

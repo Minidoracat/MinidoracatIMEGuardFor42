@@ -22,7 +22,7 @@
 [*] 처음 실행 시 SmartScreen이 뜨면 「추가 정보 → 실행」을 누르세요.
 [*] 시스템 트레이에 키캡 아이콘이 나타나면 게임을 시작합니다.
 [/olist]
-🎬 [b]35초 데모 영상:[/b] [url=https://youtu.be/5q1bfbm3lgU]https://youtu.be/5q1bfbm3lgU[/url]
+🎬 [b]소개 영상:[/b] [url=https://youtu.be/bgYNjQxmhco]https://youtu.be/bgYNjQxmhco[/url](영어)
 
 [h2]✨ 주요 기능[/h2]
 [list]

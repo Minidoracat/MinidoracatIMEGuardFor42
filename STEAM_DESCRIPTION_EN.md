@@ -22,7 +22,7 @@ It keeps PZ on an English keyboard while you play and switches back to your own 
 [*] On first launch SmartScreen appears: click "More info → Run anyway".
 [*] Once the keycap icon shows up in the system tray, start the game.
 [/olist]
-🎬 [b]35-second demo:[/b] [url=https://youtu.be/5q1bfbm3lgU]https://youtu.be/5q1bfbm3lgU[/url]
+🎬 [b]Intro video:[/b] [url=https://youtu.be/bgYNjQxmhco]https://youtu.be/bgYNjQxmhco[/url]
 
 [h2]✨ Features[/h2]
 [list]

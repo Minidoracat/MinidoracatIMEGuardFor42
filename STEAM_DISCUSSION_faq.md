@@ -14,7 +14,7 @@
 [*] 第一次會跳 SmartScreen「Windows 已保護您的電腦」（未簽章的正常提示）：點「其他資訊 → 仍要執行」，或先對 exe 右鍵 → 內容 → 勾「解除封鎖」。
 [*] 確認系統匣出現鍵帽圖示後開遊戲。進入世界時若工具沒在跑，MOD 會提醒一次。
 [/olist]
-35 秒示範影片：[url=https://youtu.be/5q1bfbm3lgU]https://youtu.be/5q1bfbm3lgU[/url]（下載 → 執行 → 遊戲內打中文 → 關聊天直接走動）
+介紹影片：[url=https://youtu.be/RGuE1GUEs9I]https://youtu.be/RGuE1GUEs9I[/url]（輸入法吃掉移動鍵 → 開守衛就能跑 → 搜尋與聊天打中文 → 切出遊戲還原輸入法）
 
 [h2]🧟 為什麼需要它[/h2]
 Windows 上只要中文／日文／韓文輸入法在組字模式，每個按鍵都會先交給輸入法，PZ 會直接忽略——WASD、Shift 跑步、空白鍵、E 互動全部沒反應。PZ 的操作鍵又剛好是 Windows 切輸入法的熱鍵（Shift 跑步＋Alt 衝刺＝Alt+Shift；Ctrl 瞄準＋空白＝Ctrl+Space），玩到一半就被切回輸入法。官方已明講不會在遊戲端處理；等遊戲底層的相關修正上線後，這個 MOD 就不再需要。

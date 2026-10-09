@@ -68,7 +68,7 @@ jobs:
           }
           $signed = (Get-AuthenticodeSignature dist/$env:EXE_NAME).Status -eq 'Valid'
           $section += ""; $section += "Workshop：https://steamcommunity.com/sharedfiles/filedetails/?id=3802890539"
-          $section += "示範影片：https://youtu.be/5q1bfbm3lgU"
+          $section += "介紹影片：https://youtu.be/RGuE1GUEs9I（English: https://youtu.be/bgYNjQxmhco）"
           $section += "**只訂閱 MOD 不會有效果**，請下載下方 Assets 的 ``$env:EXE_NAME`` 執行。舊版還開著時直接開新版即可：新版會請舊版退出後接手（0.1.4 以前的舊版做不到，會提示你先從系統匣結束）。"
           if ($signed) { $section += "exe 已由 SignPath Foundation 簽章（發行者顯示 SignPath Foundation）。" }
           else { $section += "exe 未簽章，SmartScreen 出現時按「其他資訊 → 仍要執行」。" }

@@ -22,7 +22,7 @@
 [*] 第一次會跳 SmartScreen，點「其他資訊 → 仍要執行」。
 [*] 系統匣出現鍵帽圖示後開遊戲，打字時會自動切換。
 [/olist]
-🎬 [b]35 秒示範影片：[/b][url=https://youtu.be/5q1bfbm3lgU]https://youtu.be/5q1bfbm3lgU[/url]
+🎬 [b]介紹影片：[/b][url=https://youtu.be/RGuE1GUEs9I]https://youtu.be/RGuE1GUEs9I[/url]
 
 [h2]✨ 主要功能[/h2]
 [list]

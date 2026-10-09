@@ -22,7 +22,7 @@
 [*] 初回は SmartScreen が出るので「詳細情報 → 実行」を選びます。
 [*] タスクトレイにキーキャップのアイコンが出たら、ゲームを起動します。
 [/olist]
-🎬 [b]35 秒デモ動画：[/b][url=https://youtu.be/5q1bfbm3lgU]https://youtu.be/5q1bfbm3lgU[/url]
+🎬 [b]紹介動画：[/b][url=https://youtu.be/p3kqWRNGraE]https://youtu.be/p3kqWRNGraE[/url]
 
 [h2]✨ 主な機能[/h2]
 [list]
