@@ -1,4 +1,4 @@
-[h1]⌨️ Minidoracat IME Guard for B42[/h1]
+[h1]⌨️ Minidoracat IME Guard[/h1]
 [h3]By Minidoracat[/h3]
 
 [hr][/hr]

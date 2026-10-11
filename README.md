@@ -1,4 +1,4 @@
-# Minidoracat IME Guard for B42
+# Minidoracat IME Guard
 
 Project Zomboid Build 42 的輸入法守衛：玩遊戲時自動把 PZ 切到英文鍵盤，打字時切回你原本的輸入法。注音、拼音、日文、韓文……任何 Windows 輸入法都適用。單人、多人皆可；多人時伺服器要把本 MOD 列進 `Mods=`（PZ 只載入伺服器清單上的 MOD），伺服器端本身不執行任何東西。
 
