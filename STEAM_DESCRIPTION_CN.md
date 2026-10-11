@@ -35,7 +35,7 @@
 [*] [b]自动启动与更新[/b]：可设置登录 Windows 时启动，并自动检查新版本。
 [/list]
 
-📖 [b]工作原理、小灯颜色、常见问题与已知限制：[/b][url=https://steamcommunity.com/workshop/filedetails/discussion/3802890539/586187095760095677/]IME Guard 完整說明：運作方式、常見問題與已知限制[/url]（繁体中文）
+📖 [b]工作原理、小灯颜色、常见问题与已知限制：[/b][url=https://steamcommunity.com/sharedfiles/filedetails/?id=3817844233]輸入法守衛 IME Guard MOD 完整說明：運作方式、常見問題與已知限制[/url]（繁体中文）
 
 [h2]🔒 安全与开源[/h2]
 [list]

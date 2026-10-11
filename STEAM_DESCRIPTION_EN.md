@@ -34,7 +34,7 @@ It keeps PZ on an English keyboard while you play and switches back to your own 
 [*] [b]Autostart and updates[/b]: optionally start with Windows, with automatic update checks.
 [/list]
 
-📖 [b]How it works, lamp colors, FAQ and known limitations:[/b] [url=https://steamcommunity.com/workshop/filedetails/discussion/3802890539/586187095760095692/]IME Guard Guide: How It Works, FAQ & Known Limitations[/url]
+📖 [b]How it works, lamp colors, FAQ and known limitations:[/b] [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3817844283]IME Guard Mod Guide: How It Works, FAQ & Known Limitations[/url]
 
 [h2]🔒 Safety and open source[/h2]
 [list]

@@ -34,7 +34,7 @@
 [*] [b]自動起動と更新確認[/b]：Windows サインイン時の自動起動と、更新の自動確認ができます。
 [/list]
 
-📖 [b]仕組み・ランプの色・よくある質問・既知の制限：[/b][url=https://steamcommunity.com/workshop/filedetails/discussion/3802890539/586187095760095692/]IME Guard Guide: How It Works, FAQ & Known Limitations[/url]（英語）
+📖 [b]仕組み・ランプの色・よくある質問・既知の制限：[/b][url=https://steamcommunity.com/sharedfiles/filedetails/?id=3817844283]IME Guard Mod Guide: How It Works, FAQ & Known Limitations[/url]（英語）
 
 [h2]🔒 安全性とオープンソース[/h2]
 [list]

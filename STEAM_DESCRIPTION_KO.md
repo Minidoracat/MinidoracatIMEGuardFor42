@@ -34,7 +34,7 @@
 [*] [b]자동 실행과 업데이트[/b]: Windows 로그인 시 자동 실행과 업데이트 자동 확인을 쓸 수 있습니다.
 [/list]
 
-📖 [b]작동 방식, 램프 색, 자주 묻는 질문과 알려진 제한:[/b] [url=https://steamcommunity.com/workshop/filedetails/discussion/3802890539/586187095760095692/]IME Guard Guide: How It Works, FAQ & Known Limitations[/url](영어)
+📖 [b]작동 방식, 램프 색, 자주 묻는 질문과 알려진 제한:[/b] [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3817844283]IME Guard Mod Guide: How It Works, FAQ & Known Limitations[/url](영어)
 
 [h2]🔒 안전성과 오픈 소스[/h2]
 [list]
