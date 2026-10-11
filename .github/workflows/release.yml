@@ -1,6 +1,8 @@
 # 推 v* tag 時：在乾淨的 Windows runner 編 pz-ime-guard.exe →（有 SignPath secrets 時）送 SignPath Foundation 簽章 →
 # 建／更新同名 Release 並附檔 → 送 VirusTotal → 把掃描連結寫回 Release 說明。
 # 流程：git tag v<modversion> && git push origin v<modversion>；Release 說明取自 CHANGELOG.md 對應版本節。
+# 只有 tag 尾段（mod semver）等於 tools/pz-ime-guard/Cargo.toml 的 version 才出 exe：工具沒升版的 MOD 版不建 Release，
+# 否則 exe 的更新檢查（取 releases/latest 的 tag 尾段比 CARGO_PKG_VERSION）會讓所有人一直收到「有新版」。
 # secrets：VT_API_KEY（VirusTotal）；SIGNPATH_API_TOKEN、SIGNPATH_ORGANIZATION_ID（SignPath 核准後填，缺則跳過簽章、照常出未簽章版）。
 # SignPath 端：project slug `pz-ime-guard`、signing policy `release-signing`；artifact configuration 見 tools/pz-ime-guard/signpath-artifact-configuration.xml。
 name: release
@@ -11,7 +13,26 @@ permissions:
   contents: write
   id-token: write
 jobs:
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      tool: ${{ steps.v.outputs.tool }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          tool=$(sed -n 's/^version = "\(.*\)"$/\1/p' tools/pz-ime-guard/Cargo.toml | head -n1)
+          if [ "${TAG##*-}" = "$tool" ]; then
+            echo "tool=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tool=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Cargo version $tool != tag ${TAG##*-}: MOD-only release, no exe Release"
+          fi
   build-scan:
+    needs: gate
+    if: needs.gate.outputs.tool == 'true'
     runs-on: windows-latest
     env:
       SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}

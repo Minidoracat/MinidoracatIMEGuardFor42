@@ -67,7 +67,7 @@ Windows 上只要中文／日文／韓文輸入法處於組字模式，按下的
 
 ## 版本
 
-版本號格式：`{PZ 版本}-{mod 版本}`（例 `42.20.4-0.1.0`），詳見 [CHANGELOG.md](CHANGELOG.md)。工具版本獨立（`tools/pz-ime-guard/Cargo.toml`）。
+版本號格式：`{PZ 版本}-{mod 版本}`（例 `42.20.4-0.1.0`），詳見 [CHANGELOG.md](CHANGELOG.md)。工具版本在 `tools/pz-ime-guard/Cargo.toml`：只改 MOD 的版本不升工具版本，也不出新的 exe；要出新 exe 時把工具版本升到和這一版的 mod 版本相同（例 MOD `42.20.4-0.2.3` → 工具 `0.2.3`）。
 
 ## 移除
 
