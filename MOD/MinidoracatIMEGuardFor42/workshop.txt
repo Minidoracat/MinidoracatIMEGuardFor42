@@ -1,6 +1,6 @@
 version=1
 id=3802890539
-title=[B42] Minidoracat IME Guard
+title=[B42] IME Guard by Minidoracat
 description=[h1]⌨️ Minidoracat IME Guard for B42[/h1]
 description=[h3]By Minidoracat[/h3]
 description=
