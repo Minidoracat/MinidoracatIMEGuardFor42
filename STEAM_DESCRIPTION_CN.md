@@ -47,8 +47,9 @@
 [h2]🔗 Minidoracat 全系列[/h2]
 其他作品都在[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3809297109]Minidoracat 全系列收藏[/url]，按需自选订阅。
 
-[h2]💬 回报与交流[/h2]
+[h2]💬 反馈与交流[/h2]
 [list]
+[*] [b]QQ交流群：[/b]1131095572（MOD问题反馈、更新通知）
 [*] [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42/issues]GitHub Issues[/url]
 [*] [url=https://discord.gg/Gur2V67]Discord[/url]
 [/list]
