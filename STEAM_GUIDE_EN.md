@@ -38,7 +38,7 @@ https://steamcommunity.com/sharedfiles/filedetails/?id=3802890539
 [list]
 [*] [b]How it knows[/b]: it follows the game's own "typing in a text box" state. Click into chat, search, naming… and your IME comes back; leave and you are on English again.
 [*] [b]Which IME[/b]: the last IME used in the PZ window, not the system default.
-[*] [b]Use another one[/b]: press Win+Space once in chat and it is remembered.
+[*] [b]Use another one[/b]: in chat, hold Win and press Space until the IME you want is selected, then let go (one press does not switch). It is remembered after that.
 [/list]
 [h3]Restore on leave[/h3]
 [list]
