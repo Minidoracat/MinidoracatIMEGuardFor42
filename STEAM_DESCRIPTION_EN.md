@@ -30,6 +30,7 @@ It keeps PZ on an English keyboard while you play and switches back to your own 
 [*] [b]Your IME when you type[/b]: chat, search and naming boxes bring back the last IME you used in PZ.
 [*] [b]Chinese, Japanese, Korean[/b]: guards CJK IMEs and leaves plain keyboard layouts alone.
 [*] [b]Restore on leave[/b]: your desktop IME comes back when you leave the game.
+[*] [b]See what you are composing[/b] (experimental): with a Traditional Chinese IME, the text you are composing and the candidate list show up next to the caret. Tested with Microsoft Bopomofo; Simplified Chinese and Japanese IMEs are not verified yet and stay off in this version.
 [*] [b]Tray lamp[/b]: a colored lamp shows the guard state at a glance.
 [*] [b]Autostart and updates[/b]: optionally start with Windows, with automatic update checks.
 [/list]
@@ -40,7 +41,7 @@ It keeps PZ on an English keyboard while you play and switches back to your own 
 [list]
 [*] Source code is public on [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42]GitHub[/url].
 [*] Every exe is built by GitHub Actions and automatically scanned on VirusTotal.
-[*] No injection into the game, no reading your keystrokes.
+[*] No injection into the game, no reading your keystrokes; while you type it only asks the IME to draw the text being composed.
 [/list]
 
 [h2]🔗 More Minidoracat mods[/h2]

@@ -40,6 +40,14 @@ https://steamcommunity.com/sharedfiles/filedetails/?id=3802890539
 [*] [b]Which IME[/b]: the last IME used in the PZ window, not the system default.
 [*] [b]Use another one[/b]: in chat, hold Win and press Space until the IME you want is selected, then let go (one press does not switch). It is remembered after that.
 [/list]
+[h3]See what you are composing (experimental)[/h3]
+[list]
+[*] [b]What it fixes[/b]: PZ never shows the text an IME is still composing, so you type blind until you commit. The tool now brings up the IME's own small composition window at the text caret; it updates with every key, the candidate list follows it, and it goes away when you commit, delete everything or cancel.
+[*] [b]Needs[/b]: the new mod and the new tool together. With only one of them updated nothing is drawn; everything else works as before.
+[*] [b]On for[/b]: Traditional Chinese IMEs only. Tested with Microsoft Bopomofo; other Traditional Chinese IMEs (Cangjie, Quick…) are enabled too but not verified.
+[*] [b]Not yet[/b]: Simplified Chinese and Japanese IMEs are not verified and stay off in this version. Korean IMEs showed no effect in testing and stay off.
+[*] [b]Turn it off[/b]: right-click the tray icon and untick "Show what I'm composing while typing (experimental)".
+[/list]
 [h3]Restore on leave[/h3]
 [list]
 [*] On leaving the game it tries to restore the desktop IME it saw before you entered (see the Alt+Tab and quitting questions).
@@ -85,14 +93,14 @@ The tool looks at the language of the Windows keyboard layout, not the IME brand
 [/table]
 [h3]Right-click menu[/h3]
 [list]
-[*] [b]Items[/b]: version, Workshop page, GitHub, the three settings (see "Settings"), Pause, Quit.
+[*] [b]Items[/b]: version, Workshop page, GitHub, the four settings (see "Settings"), Pause, Quit.
 [*] [b]One copy only[/b]: a second one says so and exits.
 [/list]
 === 🧰 Safety and privacy
 [list]
 [*] [b]One standalone Rust exe[/b]: no runtime needed.
-[*] [b]Hands off the game and your keys[/b]: no injection into the game, no reading keystrokes, no keyboard hooks, no registry writes; layouts switch through public Windows APIs.
-[*] [b]The mod is pure Lua[/b]: it only writes typing and normal-exit signals to your Zomboid folder.
+[*] [b]Hands off the game and your keys[/b]: no injection into the game, no reading keystrokes, no sending keystrokes, no keyboard hooks, no registry writes; through public Windows APIs it switches layouts and, while you type, asks the IME to draw the text being composed.
+[*] [b]The mod is pure Lua[/b]: it only writes typing and normal-exit signals and where the text caret is inside the game window to your Zomboid folder, never what you type.
 [*] [b]Network[/b]: the tool only goes online to check GitHub for updates (optional) and sends no user data.
 [*] [b]Open source[/b]: on [url=https://github.com/Minidoracat/MinidoracatIMEGuardFor42]GitHub[/url] for anyone to audit or build.
 [*] [b]Builds and scans[/b]: every exe is built by GitHub Actions in a clean environment and auto-submitted to VirusTotal; SHA-256 and scan link are on the Release page.
@@ -102,6 +110,7 @@ The tool looks at the language of the Windows keyboard layout, not the IME brand
 [table]
 [tr][th]Option[/th][th]Default[/th][/tr]
 [tr][td]Restore my IME when leaving the game[/td][td]On[/td][/tr]
+[tr][td]Show what I'm composing while typing (experimental)[/td][td]On: only does something with Traditional Chinese IMEs[/td][/tr]
 [tr][td]Check for updates (on start, daily)[/td][td]On: offers the download page when a new version is out[/td][/tr]
 [tr][td]Start when I sign in to Windows[/td][td]Off[/td][/tr]
 [/table]
@@ -117,6 +126,13 @@ The tool looks at the language of the Windows keyboard layout, not the IME brand
 [*] [b]Windows only[/b]: macOS/Linux do not have this problem.
 [*] [b]Two copies of PZ[/b]: with two copies of PZ open on one PC, only the first window is guarded.
 [*] [b]Restoring the desktop IME is best-effort[/b]: closing with X or a crash cannot notify the tool (see the Alt+Tab and quitting questions).
+[*] [b]Composition display: redraws while you pause[/b]: if you stop mid-composition, the window is redrawn about once a second and may blink (under 0.04 s each time in testing); it does not while you keep typing.
+[*] [b]Composition display: multi-line boxes[/b]: the window appears on the line below the caret's line, at the left edge, not right at the caret.
+[*] [b]Composition display: very long single lines[/b]: once the text is wider than the box, the window stays at the box's right edge.
+[*] [b]Composition display: looks[/b]: it is the IME's own window; its font and colors come from the IME, not the game.
+[*] [b]Composition display: not in password boxes[/b]: fields the game masks with asterisks (server and account passwords) never get a composition window, so your keystrokes are not shown next to them; you type blind there as before.
+[*] [b]Composition display: tool killed[/b]: if the tool is ended from Task Manager or crashes while you are typing, a composition window that no longer updates may stay on screen; starting the tool again clears it (even with the option off).
+[*] [b]Composition display: non-vanilla text boxes[/b]: input fields not built on the game's own text box give no caret position, so the window appears at a fixed spot below the middle of the screen.
 [/list]
 === ❓ FAQ
 [h3]Do search boxes switch back to my IME? Can it search items in containers?[/h3]
