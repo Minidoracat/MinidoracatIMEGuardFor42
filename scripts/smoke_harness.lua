@@ -7,7 +7,8 @@
 - 標準 Lua 有 next/xpcall，Kahlua 沒有——本 harness **測不出**誤用，
   那由 scripts/verify_mod.py 的靜態掃描負責（發版前兩者都要跑）
 - 輸入法切換本身在外部工具（tools/pz-ime-guard），這裡只驗訊號端：「打字狀態變了才寫檔、寫的內容對、
-  工具不在線時提醒一次、關程序的四條路徑會寫退出旗標而取消不會、打字中把游標位置與文字變動寫進 caret.txt」。
+  工具不在線時提醒一次、關程序的四條路徑會寫退出旗標而取消不會、打字中把游標位置與文字變動寫進 caret.txt
+  （密碼框只寫序號、算位置出錯不拖累 state.txt）」。
   實機證據見 .omc/artifacts/e2e-*。
 ]]
 
@@ -34,7 +35,7 @@ function getPlayer()
     return { setHaloNote = function(_, text) halo[#halo + 1] = text end }
 end
 
--- 假的 UI 樹：Java 的 ArrayList（size／get 從 0 起算）、面板、UITextBox2。字寬一律 7、行高 20、內距 2。
+-- 假的 UI 樹：Java 的 ArrayList（size／get 從 0 起算）、面板、UITextBox2。字寬 7（"Big" 字型 10）、行高 20、內距 2。
 local ui = {}
 local function jlist(t) return { size = function() return #t end, get = function(_, i) return t[i + 1] end } end
 local function panel(children, visible)
@@ -53,7 +54,8 @@ local function textbox(o)
         getAbsoluteX = function() return o.x end,
         getAbsoluteY = function() return o.y end,
         getWidth = function() return o.w end,
-        getTable = function() return nil end,
+        getTable = function() return o.font and { font = o.font } or nil end,
+        isMasked = function() return o.masked or false end,
         isMultipleLine = function() return o.multi or false end,
         getCursorLine = function() return o.line or 0 end,
         getCursorPos = function() return o.cursor end,
@@ -65,7 +67,7 @@ function instanceof(e, name) return e.class == name or (name == "UIElement" and 
 UIManager = { getUI = function() return jlist(ui) end }
 UIFont = { Small = "Small" }
 function getTextManager()
-    return { MeasureStringX = function(_, _, s) return 7 * #s end, getFontHeight = function() return 20 end }
+    return { MeasureStringX = function(_, font, s) return (font == "Big" and 10 or 7) * #s end, getFontHeight = function() return 20 end }
 end
 function getFileWriter(name, _, _)
     if not writerAvailable then return nil end
@@ -184,7 +186,7 @@ local beforeWrites = n(EXIT)
 MainScreen:quitToDesktop()
 check(n(EXIT) == beforeWrites + 1, "重複 OnGameBoot 不重複包裝（一次退出只寫一次）")
 
--- ===== 情境五：組字顯示的位置訊號（caret.txt，一行 "<seq> <x> <y>"） =====
+-- ===== 情境五：組字顯示的位置訊號（caret.txt，一行 "<seq> <x> <y>"；只有 "<seq>"＝不要畫） =====
 io.write("情境五：游標位置與文字變動\n")
 local function caret()
     local s, x, y = files[CARET]:match("^(%d+) (%-?%d+) (%-?%d+)$")
@@ -198,7 +200,7 @@ order = {}
 typing = true; tick()
 local seq, x, y = caret()
 check(x == 300 + 2 + 7 * 3 and y == 300 + 2, "單行框：游標 = 框左上 + 內距 + 游標前的字寬（跳過看不見的面板）")
-check(order[1] == CARET and order[2] == STATE and files[STATE] == "1", "先寫位置再寫 state：工具被叫醒時已經讀得到")
+check(order[1] == STATE and order[2] == CARET and files[STATE] == "1", "先寫 state 再寫位置：算位置出錯也不擋切換")
 local wrote = n(CARET)
 tick(3)
 check(n(CARET) == wrote, "文字與位置都沒變就不寫")
@@ -241,6 +243,37 @@ check(scans == 2 and x == 310 + 2 + 7 * 4, "每 30 tick 重掃一次，找到就
 wrote = n(CARET)
 typing = false; tick()
 check(files[STATE] == "0" and n(CARET) == wrote, "結束打字 -> 寫 0，不動 caret.txt")
+scans = 0; tick(40)
+check(scans == 0 and n(CARET) == wrote, "不打字時不掃 UI 樹、不寫 caret.txt")
+
+local big = textbox({ x = 500, y = 500, w = 400, text = "ab", cursor = 2, focused = true, font = "Big" })
+ui = { { class = "AtomUIElement" }, panel({ a }), panel({ big }) }
+typing = true; tick()
+seq, x, y = caret()
+check(x == 500 + 2 + 10 * 2 and y == 502, "兩個聚焦的框取上層那個；不是 UIElement 的元素跳過；字寬用框自己的字型")
+local pw = textbox({ x = 40, y = 40, w = 200, text = "****", cursor = 4, focused = true, masked = true })
+a.o.focused, big.o.focused = false, false; ui[#ui + 1] = panel({ pw }); tick()
+local only = files[CARET]
+check(only:match("^%d+$") ~= nil and tonumber(only) == seq + 1, "密碼框：只寫序號（不要畫），不寫座標")
+pw.o.text, pw.o.cursor = "*****", 5; tick(20)
+check(files[CARET] == only, "密碼框裡打字：不再寫任何東西（座標等於字數）")
+pw.o.focused, big.o.focused = false, true; tick()
+seq, x = caret()
+check(seq == tonumber(only) + 1 and x == 500 + 2 + 10 * 2, "離開密碼框回到一般的框 -> 又有座標")
+typing = false; tick()
+
+local broken = textbox({ x = 1, y = 1, w = 50, text = "", cursor = 0, focused = true })
+broken.getCursorPos = nil -- 遊戲更新拿掉一個方法、或別的 MOD 的框不完整
+big.o.focused = false; ui = { panel({ broken }) }
+local logged = #prints
+scans = 0; typing = true; tick()
+check(files[STATE] == "1", "算位置丟錯 -> state.txt 照樣寫 1（切換輸入法不受影響）")
+check(files[CARET]:match("^%d+$") ~= nil, "算位置丟錯 -> caret.txt 只剩序號，叫工具別畫")
+wrote = n(CARET); tick(60)
+check(#prints == logged + 1 and prints[#prints]:find("composition display disabled", 1, true) ~= nil, "錯誤只印一次")
+check(scans == 1 and n(CARET) == wrote, "之後不再掃 UI 樹、不再寫 caret.txt")
+typing = false; tick()
+check(files[STATE] == "0", "停用組字顯示後，結束打字仍寫 0")
 
 io.write("\n")
 if failures > 0 then

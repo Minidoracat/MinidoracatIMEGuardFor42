@@ -14,7 +14,8 @@
 //!   state.txt      MOD 寫，"1"＝打字中、"0"＝沒有；空檔／其他內容視為未變
 //!   exiting.txt    MOD 寫，"1"＝玩家已確認關程序（視窗還會活很久），"0"／空＝正常；本工具讀到就消費掉
 //!   caret.txt      MOD 寫（打字中才寫），一行 "<seq> <x> <y>"：組字視窗要放的位置（PZ 視窗內像素）與
-//!                  「框內文字變了幾次」；空檔／格式不對視為未變。只有組字顯示用它，切換輸入法不看
+//!                  「框內文字變了幾次」；只有 "<seq>"＝這個框不要畫（密碼框、MOD 算不出位置）；
+//!                  空檔／其他內容視為未變。只有組字顯示用它，切換輸入法不看
 //!   heartbeat.txt  本工具每 2 s 寫 epoch 秒；MOD 進遊戲時讀不到或過期就提醒玩家
 //!   running.txt    執行中那一份的版本號；較新版啟動時據此決定要不要請它退出（見 main）
 #![windows_subsystem = "windows"]
@@ -706,14 +707,24 @@ struct Preedit {
 }
 
 impl Preedit {
+    /// 啟動時當作「上一份工具畫過、沒收尾」：被強制結束的工具會留下一塊不更新的組字視窗，而且只有
+    /// 「結束」清得掉。所以第一次輪到 PZ 在前景時先送一次（開關關著也送，不然玩家關掉開關也救不回來）。
+    fn at_startup() -> Self {
+        Self { shown: true, ..Self::default() }
+    }
+
     fn caret(&mut self, line: &str) {
         if line == self.line {
             return;
         }
-        let Some(pos) = parse_caret(line) else { return }; // 空檔（MOD 正在截斷重寫）：沿用上一次的
+        let pos = match parse_caret(line) {
+            Some(pos) => Some(pos),
+            None if line.parse::<f64>().is_ok() => None, // 只有序號：MOD 說這個框不要畫
+            None => return,                              // 空檔（MOD 正在截斷重寫）或壞內容：沿用上一次的
+        };
         self.line = line.to_owned();
-        if self.pos != Some(pos) {
-            self.pos = Some(pos);
+        if self.pos != pos {
+            self.pos = pos;
             self.pos_dirty = true;
         }
         self.sweep = true; // 行變了＝文字變了或框動了：舊的組字不該留在原地
@@ -723,12 +734,12 @@ impl Preedit {
     /// `live`：PZ 在前景、打字中、配置支援、開關開著。`busy`：上一拍的回聲還沒回來（PZ 還沒處理完）。
     /// `sig`：組字視窗矩形的雜湊。
     fn beat(&mut self, now: Instant, live: bool, busy: bool, sig: u64) -> Beat {
-        if !live {
-            // 收尾：畫過才欠一次「結束」；回來時位置與節拍都重來
+        let Some(pos) = self.pos.filter(|_| live) else {
+            // 不畫（不再 live、舊版 MOD 沒有 caret.txt、MOD 說這個框不要畫）：畫過才欠一次「結束」；
+            // 回來時位置與節拍都重來
             self.next = None;
             return Beat { end: std::mem::take(&mut self.shown), ..Beat::default() };
-        }
-        let Some(pos) = self.pos else { return Beat::default() }; // 沒有 caret.txt＝舊版 MOD：不畫
+        };
         if busy || self.next.is_some_and(|t| now < t) {
             return Beat::default();
         }
@@ -756,7 +767,8 @@ impl Preedit {
     }
 }
 
-/// 上一拍的回聲還沒回來。回聲是排在重畫訊息後面的 WM_NULL：PZ 處理到它＝前面的都處理完了。
+/// 上一拍的回聲還沒回來。回聲是跟著重畫訊息送的 WM_NULL：PZ 處理到它＝PZ 還在抽訊息。它是 sent 訊息，
+/// 會比同一拍 Post 的重畫先被處理，所以不代表「這一拍畫完了」，只用來在 PZ 卡住時不繼續堆訊息。
 static ECHO_PENDING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 unsafe extern "system" fn echo(_: HWND, _: u32, _: usize, _: LRESULT) {
@@ -820,7 +832,7 @@ impl Guard {
             restorer: Restorer::default(),
             exit: ExitLatch::default(),
             exit_seen: SystemTime::now(),
-            preedit: Preedit::default(),
+            preedit: Preedit::at_startup(),
             live: None,
             preedit_on: None,
             echo_at: None,
@@ -925,15 +937,17 @@ impl Guard {
         status
     }
 
-    /// 組字顯示這一輪。`live` 只在「PZ 在前景、打字中、回讀到的配置是支援的語言、開關開著」時有值；
-    /// 其他情況（PZ 離開前景、暫停、關掉開關、本工具結束）只做一件事：畫過就對 PZ 的輸入法視窗送一次
-    /// 「組字結束」把它收掉，免得一塊舊字留在桌面上。這是「只在 PZ 前景時動作」的第二個例外
-    /// （使用者 2026-11-24 裁定），對象仍然只有 PZ 自己的視窗。
+    /// 組字顯示這一輪。`live` 只在「PZ 在前景、打字中、回讀到的配置是支援的語言、MOD 給了位置、開關
+    /// 開著」時有值；其他情況（PZ 離開前景、暫停、關掉開關、本工具結束）只做一件事：畫過就對 PZ 的
+    /// 輸入法視窗送一次「組字結束」把它收掉，免得一塊舊字留在桌面上。這是「只在 PZ 前景時動作」的
+    /// 第二個例外（使用者 2026-11-24 裁定），對象仍然只有 PZ 自己的視窗。
     fn preedit_tick(&mut self) {
-        if self.live.is_some() {
-            self.preedit_on = self.live;
-        }
         let Some((hwnd, thread)) = self.preedit_on else { return };
+        // 送之前重驗對象（同還原路徑的 still_there）：PZ 關掉後 HWND 可能被回收給別的程序，那就沒有東西要收
+        if unsafe { GetWindowThreadProcessId(hwnd, None) } != thread {
+            (self.preedit_on, self.preedit.shown) = (None, false);
+            return;
+        }
         let now = Instant::now();
         let live = self.live.is_some();
         let busy = ECHO_PENDING.load(std::sync::atomic::Ordering::Relaxed)
@@ -946,6 +960,7 @@ impl Guard {
         // 每個 UI 執行緒有一個預設輸入法視窗，組字視窗由它管；它屬於 PZ 程序，不是別人的視窗
         let ime = unsafe { ImmGetDefaultIMEWnd(hwnd) };
         if ime.0.is_null() {
+            self.preedit.shown = false; // 這一拍沒送出去：下一拍當成新的一段，「結束」與位置重送
             return;
         }
         unsafe {
@@ -1035,6 +1050,7 @@ impl Guard {
         }
         let hwnd = fg;
         let thread = unsafe { GetWindowThreadProcessId(hwnd, None) };
+        self.preedit_on = Some((hwnd, thread)); // 組字收尾的對象：畫不畫都記，啟動時那一次「結束」也靠它
         let current = unsafe { GetKeyboardLayout(thread) };
         if is_ime_lang(current) {
             self.ime = Some(current);
@@ -1062,7 +1078,10 @@ impl Guard {
             if let Ok(line) = fs::read_to_string(self.dir.join("caret.txt")) {
                 self.preedit.caret(line.trim());
             }
-            self.live = Some((hwnd, thread));
+            // 沒有位置（舊版 MOD、MOD 說這個框不要畫）就不畫，也不必照重畫節拍醒來
+            if self.preedit.pos.is_some() {
+                self.live = Some((hwnd, thread));
+            }
         }
         if self.typing { Status::Typing } else { Status::Guarding }
     }
@@ -1071,13 +1090,18 @@ impl Guard {
     fn restoring(&self) -> bool {
         self.restorer.pending.is_some()
     }
-}
 
-/// 本工具結束（選單「結束」、被新版請走）時，畫著的組字視窗也要收掉。
-impl Drop for Guard {
-    fn drop(&mut self) {
+    /// 主迴圈要停下來之前（本工具結束、跳出會擋住迴圈的對話框）：畫著的組字視窗先收掉。
+    fn settle(&mut self) {
         self.live = None;
         self.preedit_tick();
+    }
+}
+
+/// 本工具結束（選單「結束」、被新版請走）。
+impl Drop for Guard {
+    fn drop(&mut self) {
+        self.settle();
     }
 }
 
@@ -1284,6 +1308,7 @@ fn main() {
             spawn_update_check(update_tx.clone());
         }
         if let Ok(tag) = update_rx.try_recv() {
+            guard.settle(); // 對話框開著時這個迴圈不跑：別讓組字視窗停在畫面上不更新
             let text = s.update_available.replace("{tag}", &tag).replace("{current}", env!("CARGO_PKG_VERSION"));
             let answer = unsafe { MessageBoxW(None, &HSTRING::from(text), w!("pz-ime-guard"), MB_YESNO | MB_ICONINFORMATION) };
             if answer == IDYES {
@@ -1726,12 +1751,46 @@ mod preedit_tests {
     }
 
     #[test]
+    fn a_box_the_mod_says_not_to_draw_is_ended_once() {
+        let t = Instant::now();
+        let mut p = running(t);
+        p.caret("2"); // 密碼框：只有序號
+        assert_eq!(p.beat(t + ms(1), true, false, 0), Beat { end: true, ..Beat::default() }, "畫過的先收掉");
+        assert_eq!(p.beat(t + ms(2), true, false, 0), Beat::default(), "之後什麼都不送");
+        p.caret(""); // 空檔與壞內容不算「不要畫」，也不會把它變回要畫
+        p.caret("x");
+        assert_eq!(p.beat(t + ms(3), true, false, 0), Beat::default());
+        p.caret("3 300 326"); // 換到一般的框
+        assert_eq!(p.beat(t + ms(4), true, false, 0), Beat { end: true, pos: Some((300, 326)), show: true });
+    }
+
+    #[test]
+    fn a_fresh_tool_ends_whatever_a_killed_one_left_behind() {
+        let t = Instant::now();
+        let mut p = Preedit::at_startup();
+        assert_eq!(p.beat(t, false, false, 0), Beat { end: true, ..Beat::default() }, "開關關著、沒在打字也送");
+        assert_eq!(p.beat(t + ms(1), false, false, 0), Beat::default(), "只送一次");
+        let mut typing = Preedit::at_startup();
+        typing.caret("1 300 326"); // 啟動時玩家正在打字：第一拍照樣帶「結束」與位置
+        assert_eq!(typing.beat(t, true, false, 0), Beat { end: true, pos: Some((300, 326)), show: true });
+    }
+
+    #[test]
     fn redraws_on_the_pulse_and_waits_for_the_echo() {
         let t = Instant::now();
         let mut p = running(t);
         assert_eq!(p.beat(t + ms(10), true, false, 0), Beat::default(), "還沒到下一拍");
         assert_eq!(p.beat(t + PULSE, true, true, 0), Beat::default(), "PZ 還沒處理完上一拍：不再堆訊息");
         assert_eq!(p.beat(t + PULSE, true, false, 0), show(), "平常只重畫：不收、位置不重送");
+    }
+
+    #[test]
+    fn what_changed_during_a_busy_beat_is_sent_afterwards() {
+        let t = Instant::now();
+        let mut p = running(t);
+        p.caret("2 317 326");
+        assert_eq!(p.beat(t + PULSE, true, true, 0), Beat::default(), "PZ 還沒處理完：先不送");
+        assert_eq!(p.beat(t + PULSE * 2, true, false, 0), Beat { end: true, pos: Some((317, 326)), show: true });
     }
 
     #[test]

@@ -39,7 +39,7 @@ local function writeSignal(name, content)
     writer:close()
 end
 
---[[ 組字顯示（caret.txt，一行 "<seq> <x> <y>"）
+--[[ 組字顯示（caret.txt，一行 "<seq> <x> <y>"；只有 "<seq>"＝這個框不要畫）
 
 PZ 的 GLFW 不讓輸入法畫組字視窗，也把「組字更新／結束」通知吃掉，所以玩家看不到正在組的字。
 工具會請輸入法自己畫出來，但它不知道該畫在哪、也不知道字什麼時候送出了——這兩件由這裡回答：
@@ -48,6 +48,8 @@ PZ 的 GLFW 不讓輸入法畫組字視窗，也把「組字更新／結束」�
 Core.currentTextEntryBox 沒有 Lua getter、反射讀欄位限 debug（LuaManager.validateReflectionAccess），
 所以開始打字時掃一次 UIManager.getUI() 找聚焦的 UITextBox2 並記住；滑鼠點擊由 Java 直接聚焦，
 包 ISTextEntryBox:focus 抓不全。找不到（不是 UITextBox2 的輸入框）就給畫面中下方的固定點。
+密碼框（UITextBox2.isMasked：原版的密碼欄，主播模式下還有伺服器位址與埠）只寫序號：遊戲把字遮成星號，
+組字視窗不該在旁邊把按的鍵明文畫出來；座標也不寫（它等於字數）。
 ]]
 local CARET_FILE = DIR .. "caret.txt"
 local MOVE_EVERY = 15   -- tick；只有位置變（拖面板、捲動）時最多多久寫一次
@@ -93,52 +95,64 @@ local function trackCaret(started)
         box, boxText, sinceScan = found, nil, 0
     end
     local x, y, text
-    if box then
-        text = box:getText() or ""
-        x, y = caretOf(box, text)
-    else
+    if not box then
         local core = getCore()
         x, y = math.floor(core:getScreenWidth() / 2), math.floor(core:getScreenHeight() * 2 / 3)
+    elseif not box:isMasked() then
+        text = box:getText() or ""
+        x, y = caretOf(box, text)
     end
     local changed = started or text ~= boxText
     if changed then seq, boxText = seq + 1, text end
-    local line = seq .. " " .. x .. " " .. y
+    local line = x and (seq .. " " .. x .. " " .. y) or tostring(seq)
     if line ~= caretLine and (changed or sinceWrite >= MOVE_EVERY) then
         caretLine, sinceWrite = line, 0
         writeSignal(CARET_FILE, line)
     end
 end
 
+local caretBroken = false
+
 local function onTick()
     local typing = getCore():isDoingTextEntry()
-    if typing then trackCaret(typing ~= lastTyping) end -- 先寫位置：工具被 state.txt 叫醒時已經讀得到
-    if typing == lastTyping then return end
-    lastTyping = typing
-    writeSignal(STATE_FILE, typing and "1" or "0")
+    local started = typing ~= lastTyping
+    if started then
+        lastTyping = typing
+        writeSignal(STATE_FILE, typing and "1" or "0") -- 先寫：下面的組字顯示出錯不能拖累切換輸入法
+    end
+    if not typing or caretBroken then return end
+    -- 位置要用十幾個 UI 方法，遊戲更新或別的 MOD 的框少了哪一個都會丟錯：出錯一次就整個停用，並叫工具別畫
+    local ok, err = pcall(trackCaret, started)
+    if not ok then
+        caretBroken = true
+        print(TAG .. " composition display disabled: " .. tostring(err))
+        seq = seq + 1
+        writeSignal(CARET_FILE, tostring(seq))
+    end
 end
 
--- OnTickEvenPaused 只在遊戲內觸發（GameWindow.java:366-367），主選單靠 OnFETick（MainScreenState.java:665）
+-- OnTickEvenPaused 只在遊戲內觸發（IngameState 每 tick、GameWindow 在暫停時），主選單靠 OnFETick（MainScreenState）
 Events.OnTickEvenPaused.Add(onTick)
 Events.OnFETick.Add(onTick)
 
 --[[ 正常退出（exiting.txt，"1"＝玩家已確認關程序）
 
-為什麼需要：getCore():quitToDesktop() 只把 GameWindow.closeRequested 設 true（Core.java:2155），
-之後 GameWindow.exit() 要跑完存檔、斷線、關 Steam、壓日誌、釋放 native 才結束（GameWindow.java:765-860），
+為什麼需要：getCore():quitToDesktop() 只把 GameWindow.closeRequested 設 true（Core.quitToDesktop），
+之後 GameWindow.exit() 要跑完存檔、斷線、關 Steam、壓日誌、釋放 native 才結束，
 這整段視窗還在、標題不變、多半還是前景。工具只看視窗，會一直以為還在遊戲裡繼續守 en-US，
 玩家回到桌面時鍵盤就留在英文。所以由 Lua 在「已確認、且真的要關程序」的那一刻先講一聲。
 
 只掛四條路徑，全部都在按下確認之後、exit() 阻塞之前，而且一定呼叫 getCore():quitToDesktop()：
-  MainScreen:quitToDesktop            主選單 EXIT 與遊戲內 Quit 的共同終點（MainScreen.lua:1495-1509）
-  ISPostDeathUI:onConfirmQuitToDesktop 死亡畫面（ISPostDeathUI.lua:132-140；只有 YES 那一支）
-  ISServerDisconnectUI:onToDesktop     斷線畫面（ISServerDisconnectUI.lua:37-40）
-  ISTermsOfServiceUI:onButtonQuit      服務條款畫面（ISTermsOfServiceUI.lua:118-120）
+  MainScreen:quitToDesktop            主選單 EXIT 與遊戲內 Quit 的共同終點（MainScreen.lua）
+  ISPostDeathUI:onConfirmQuitToDesktop 死亡畫面（只有 YES 那一支）
+  ISServerDisconnectUI:onToDesktop     斷線畫面
+  ISTermsOfServiceUI:onButtonQuit      服務條款畫面
 不掛 getCore():quit()／exitToMenu()：那是回主選單，視窗還在，工具應該繼續守。
 沒有 OnQuit／OnExit 這種事件（LuaEventManager.AddEvents 清單裡沒有），不要假裝有。
 蓋不到視窗 X／crash／taskkill——那些不跑 Lua，工具那邊靠「視窗消失」的既有 fallback。
 
 殘留處理：關程序前寫的旗標若沒被工具消費掉（工具沒開、被殺掉），會留在磁碟上。OnGameBoot
-（開機 GameWindow.java:669、回主選單 IngameState.java:1069、Lua reload Core.java:3962）一律先寫回 "0"，
+（開機 GameWindow、回主選單 IngameState、Lua 重載 Core.ResetLua）一律先寫回 "0"，
 工具那邊也只認自己啟動之後才寫入的版本，兩邊各自擋一次，才不會讓上一局的旗標把下一局停守。
 ]]
 local function signalExit()
@@ -161,7 +175,7 @@ local function hookQuitToDesktop()
         wrapped[name] = fn
         owner[name] = fn
     end
-    -- ISModalDialog 的回呼對 YES／NO 都會叫同一個函式（ISModalDialog.lua:62），只有 YES 才是真的要關
+    -- ISModalDialog 的回呼對 YES／NO 都會叫同一個函式（ISModalDialog:onClick），只有 YES 才是真的要關
     local function confirmed(button)
         return button ~= nil and button.internal == "YES"
     end
