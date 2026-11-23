@@ -7,10 +7,14 @@
 //! 離開 PZ（alt-tab、關遊戲、正常退出）後，若我們真的把它切走過，就等一個穩定的新前景，把 PZ 進前景前
 //! 桌面用的配置還回去（有限重試＋回讀確認，可關）。沒切過就沒有還原責任，絕不把 en-US 推給桌面。
 //! 不裝鍵盤 hook、不代送按鍵、不改登錄檔；除了上述還原之外不碰其他視窗。
+//! 打字中另外請輸入法把組字視窗畫出來（PZ 的 GLFW 不讓它自己畫）：只對 PZ 自己的輸入法視窗送
+//! WM_IME_* 重畫／定位／結束訊息，不讀也不改玩家打的內容；見 `Preedit` 與 `Guard::preedit_tick`。
 //!
 //! 檔案協定（預設 %USERPROFILE%\Zomboid\Lua\MinidoracatIMEGuard\；PZ 以 -cachedir 換了位置時用 --state-dir 指定）：
 //!   state.txt      MOD 寫，"1"＝打字中、"0"＝沒有；空檔／其他內容視為未變
 //!   exiting.txt    MOD 寫，"1"＝玩家已確認關程序（視窗還會活很久），"0"／空＝正常；本工具讀到就消費掉
+//!   caret.txt      MOD 寫（打字中才寫），一行 "<seq> <x> <y>"：組字視窗要放的位置（PZ 視窗內像素）與
+//!                  「框內文字變了幾次」；空檔／格式不對視為未變。只有組字顯示用它，切換輸入法不看
 //!   heartbeat.txt  本工具每 2 s 寫 epoch 秒；MOD 進遊戲時讀不到或過期就提醒玩家
 //!   running.txt    執行中那一份的版本號；較新版啟動時據此決定要不要請它退出（見 main）
 #![windows_subsystem = "windows"]
@@ -28,18 +32,23 @@ use tray_icon::{
 };
 use windows::{
     core::{w, BOOL, HSTRING},
-    Win32::Foundation::{CloseHandle, GetLastError, ERROR_ALREADY_EXISTS, HANDLE, HWND, LPARAM, WAIT_OBJECT_0, WPARAM},
+    Win32::Foundation::{
+        CloseHandle, GetLastError, ERROR_ALREADY_EXISTS, HANDLE, HWND, LPARAM, LRESULT, POINT, RECT, WAIT_OBJECT_0, WPARAM,
+    },
     Win32::Globalization::GetUserDefaultUILanguage,
     Win32::Storage::FileSystem::{
         FindFirstChangeNotificationW, FindNextChangeNotification, FILE_NOTIFY_CHANGE_LAST_WRITE, FILE_NOTIFY_CHANGE_SIZE,
     },
+    Win32::UI::Input::Ime::{ImmGetDefaultIMEWnd, CFS_POINT, COMPOSITIONFORM, IMC_SETCOMPOSITIONWINDOW},
     Win32::UI::Input::KeyboardAndMouse::{GetKeyboardLayout, GetKeyboardLayoutList, HKL},
     Win32::System::Threading::{CreateEventW, CreateMutexW, OpenEventW, SetEvent, WaitForSingleObject, EVENT_MODIFY_STATE},
     Win32::UI::Shell::ShellExecuteW,
     Win32::UI::WindowsAndMessaging::{
-        DispatchMessageW, EnumWindows, GetClassNameW, GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
-        IsWindow, IsWindowVisible, MessageBoxW, MsgWaitForMultipleObjects, PeekMessageW, PostMessageW, TranslateMessage,
-        IDYES, MB_ICONINFORMATION, MB_ICONWARNING, MB_OK, MB_YESNO, MSG, PM_REMOVE, QS_ALLINPUT, SW_SHOWNORMAL,
+        DispatchMessageW, EnumThreadWindows, EnumWindows, GetClassNameW, GetForegroundWindow, GetWindowRect, GetWindowTextW,
+        GetWindowThreadProcessId, IsWindow, IsWindowVisible, MessageBoxW, MsgWaitForMultipleObjects, PeekMessageW,
+        PostMessageW, SendMessageCallbackW, SendMessageTimeoutW, TranslateMessage, IDYES, MB_ICONINFORMATION,
+        MB_ICONWARNING, MB_OK, MB_YESNO, MSG, PM_REMOVE, QS_ALLINPUT, SMTO_ABORTIFHUNG, SW_SHOWNORMAL,
+        WM_IME_COMPOSITION, WM_IME_CONTROL, WM_IME_ENDCOMPOSITION, WM_IME_STARTCOMPOSITION, WM_NULL,
     },
 };
 
@@ -54,6 +63,12 @@ const RESTORE_GIVE_UP: Duration = Duration::from_secs(10); // 有可用前景之
 const RESTORE_TRIES: u8 = 3; // 還原請求的重送次數上限（請求 ≠ 已接受）
 const RESEND_AFTER: Duration = Duration::from_millis(500);
 const HEARTBEAT_EVERY: Duration = Duration::from_secs(2);
+const PULSE: Duration = Duration::from_millis(33); // 組字重畫的節拍：實測每 33 ms 一次，逐鍵跟得上、不閃
+const SWEEP_IDLE: Duration = Duration::from_millis(400); // 組字視窗靜止這麼久就清一次（刪光／Esc 後的舊字）
+const SWEEP_AGAIN: Duration = Duration::from_secs(1); // 清過之後視窗還在、還是沒動：隔這麼久再清（停手後才取消的情況）
+const SWEEP_QUIET: Duration = Duration::from_millis(150); // 剛清過：視窗正在消失又出現，這段時間的變化不算活動
+const ECHO_STALE: Duration = Duration::from_secs(1); // PZ 這麼久沒回聲就不再等（卡住時每秒最多補一拍，不灌爆它的佇列）
+const GCS_REDRAW: isize = 0x1B8; // GCS_COMPSTR|COMPATTR|COMPCLAUSE|CURSORPOS|DELTASTART：「組字內容變了，請重畫」
 
 fn lang(hkl: HKL) -> u16 {
     (hkl.0 as usize & 0xffff) as u16
@@ -208,6 +223,7 @@ struct Strings {
     menu_check_updates: &'static str,
     menu_restore_desktop: &'static str,
     menu_startup: &'static str,
+    menu_show_composition: &'static str,
     startup_failed: &'static str,
     update_available: &'static str,
     notice: &'static str,
@@ -227,6 +243,7 @@ const EN: Strings = Strings {
     menu_check_updates: "Check for updates (on start, daily)",
     menu_restore_desktop: "Restore my IME when leaving the game",
     menu_startup: "Start when I sign in to Windows",
+    menu_show_composition: "Show what I'm composing while typing (experimental)",
     startup_failed: "Could not change the Windows startup shortcut:\n\n{error}",
     update_available: "pz-ime-guard {tag} is available (you have {current}).
 
@@ -256,6 +273,7 @@ const TW: Strings = Strings {
     menu_check_updates: "自動檢查更新（啟動時與每日）",
     menu_restore_desktop: "切出遊戲時還原桌面的輸入法",
     menu_startup: "登入 Windows 時自動啟動",
+    menu_show_composition: "打字時顯示組字中的字（實驗性）",
     startup_failed: "無法變更自動啟動的捷徑：\n\n{error}",
     update_available: "有新版 pz-ime-guard {tag}（目前 {current}）。
 
@@ -285,6 +303,7 @@ const CN: Strings = Strings {
     menu_check_updates: "自动检查更新（启动时与每日）",
     menu_restore_desktop: "切出游戏时还原桌面的输入法",
     menu_startup: "登录 Windows 时自动启动",
+    menu_show_composition: "打字时显示正在输入的内容（实验性）",
     startup_failed: "无法变更自动启动的快捷方式：\n\n{error}",
     update_available: "有新版 pz-ime-guard {tag}（当前 {current}）。
 
@@ -314,6 +333,7 @@ const JP: Strings = Strings {
     menu_check_updates: "更新を自動確認（起動時と毎日）",
     menu_restore_desktop: "ゲームから離れたら元の IME に戻す",
     menu_startup: "Windows サインイン時に自動実行",
+    menu_show_composition: "入力中の文字を表示する（試験的）",
     startup_failed: "スタートアップのショートカットを変更できませんでした：\n\n{error}",
     update_available: "新しい pz-ime-guard {tag} があります（現在 {current}）。
 
@@ -344,6 +364,7 @@ const KO: Strings = Strings {
     menu_check_updates: "업데이트 자동 확인(시작 시·매일)",
     menu_restore_desktop: "게임에서 벗어나면 원래 IME로 복원",
     menu_startup: "Windows 로그인 시 자동 실행",
+    menu_show_composition: "입력 중인 글자 표시(실험적)",
     startup_failed: "시작 프로그램 바로 가기를 변경하지 못했습니다:\n\n{error}",
     update_available: "새 버전 pz-ime-guard {tag}가 있습니다(현재 {current}).
 
@@ -638,6 +659,133 @@ impl Takeover {
     }
 }
 
+/// caret.txt 的一行 `<seq> <x> <y>` → 座標。seq 只用來讓「文字變了、座標沒變」時整行仍然不同，值本身不看。
+/// 座標收小數寫法（Kahlua 的數字是 double）；欄位數不對或不是數字就不認，沿用上一次的。
+fn parse_caret(line: &str) -> Option<(i32, i32)> {
+    let mut fields = line.split_ascii_whitespace();
+    fields.next()?.parse::<f64>().ok()?;
+    let x = fields.next()?.parse::<f64>().ok()?;
+    let y = fields.next()?.parse::<f64>().ok()?;
+    fields.next().is_none().then_some((x as i32, y as i32))
+}
+
+/// 組字顯示只對實機驗過有效的語言開：繁體中文（台灣／香港／澳門；微軟注音 2026-11-23 實測，同語言的
+/// 倉頡、速成跟著開但沒驗）。簡體中文、日文沒驗到（使用者裁定：補驗後才開）；韓文實測組字視窗裡沒有字。
+fn preedit_lang(hkl: HKL) -> bool {
+    matches!(lang(hkl), 0x0404 | 0x0C04 | 0x1404)
+}
+
+/// 這一拍要對 PZ 的輸入法視窗送什麼。
+#[derive(Default, PartialEq, Eq, Debug)]
+struct Beat {
+    end: bool,               // WM_IME_ENDCOMPOSITION：收掉目前畫著的組字視窗（舊字）
+    pos: Option<(i32, i32)>, // IMC_SETCOMPOSITIONWINDOW：位置變了才送
+    show: bool,              // WM_IME_STARTCOMPOSITION＋WM_IME_COMPOSITION：請輸入法照現況重畫
+}
+
+/// 組字顯示的節拍：純邏輯、不碰 Win32（觀察值由 `Guard::preedit_tick` 餵進來），所以可以單測。
+///
+/// PZ 的 GLFW 把「組字開始／更新／結束」通知都吃掉，輸入法的組字視窗因此從不出現、出現了也不更新、
+/// 不消失。我們代替那些通知：每 `PULSE` 請它重畫一次（逐鍵更新）。但重畫不會收掉舊字——送出、刪光、
+/// Esc 之後畫面停在最後的內容——所以另外在兩種時候先送「結束」再重畫：
+///   - MOD 說框內文字變了（caret.txt 換了一行）：字送出了、或玩家刪了字；
+///   - 組字視窗的矩形靜止了一陣子：可能是刪光或取消（沒有任何訊號），也可能只是玩家停手。
+///     還在組字的話重畫會讓它馬上回來（實測消失 1～2 張畫面），所以只在靜止時做，連續打字不閃。
+#[derive(Default)]
+struct Preedit {
+    line: String,             // caret.txt 上次認的那一行
+    pos: Option<(i32, i32)>,
+    pos_dirty: bool,          // 位置還沒成功送給輸入法
+    sweep: bool,              // 下一拍先送「結束」
+    shown: bool,              // 送過「開始」而還沒收尾：不再 live 時欠一次「結束」
+    next: Option<Instant>,
+    sig: u64,                 // 組字視窗矩形的雜湊，0＝沒有視窗
+    sig_at: Option<Instant>,  // 矩形從什麼時候起沒變（清過就從清的時候起算）
+    swept: bool,              // 這個矩形已經清過：下一次改等 SWEEP_AGAIN
+    quiet_until: Option<Instant>,
+}
+
+impl Preedit {
+    fn caret(&mut self, line: &str) {
+        if line == self.line {
+            return;
+        }
+        let Some(pos) = parse_caret(line) else { return }; // 空檔（MOD 正在截斷重寫）：沿用上一次的
+        self.line = line.to_owned();
+        if self.pos != Some(pos) {
+            self.pos = Some(pos);
+            self.pos_dirty = true;
+        }
+        self.sweep = true; // 行變了＝文字變了或框動了：舊的組字不該留在原地
+        self.next = None; // 不等節拍，這一輪就做
+    }
+
+    /// `live`：PZ 在前景、打字中、配置支援、開關開著。`busy`：上一拍的回聲還沒回來（PZ 還沒處理完）。
+    /// `sig`：組字視窗矩形的雜湊。
+    fn beat(&mut self, now: Instant, live: bool, busy: bool, sig: u64) -> Beat {
+        if !live {
+            // 收尾：畫過才欠一次「結束」；回來時位置與節拍都重來
+            self.next = None;
+            return Beat { end: std::mem::take(&mut self.shown), ..Beat::default() };
+        }
+        let Some(pos) = self.pos else { return Beat::default() }; // 沒有 caret.txt＝舊版 MOD：不畫
+        if busy || self.next.is_some_and(|t| now < t) {
+            return Beat::default();
+        }
+        if !self.shown {
+            self.sweep = true; // 這一段的第一拍：上一段留下的舊字先收掉，位置重送
+            self.pos_dirty = true;
+        }
+        if self.quiet_until.is_none_or(|t| now >= t) {
+            if sig != self.sig {
+                (self.sig, self.sig_at, self.swept) = (sig, Some(now), false);
+            } else if sig != 0 {
+                let idle = if self.swept { SWEEP_AGAIN } else { SWEEP_IDLE };
+                if self.sig_at.is_some_and(|t| now.duration_since(t) >= idle) {
+                    (self.sweep, self.sig_at, self.swept) = (true, Some(now), true);
+                }
+            }
+        }
+        let end = std::mem::take(&mut self.sweep);
+        if end {
+            self.quiet_until = Some(now + SWEEP_QUIET);
+        }
+        self.shown = true;
+        self.next = Some(now + PULSE);
+        Beat { end, pos: std::mem::take(&mut self.pos_dirty).then_some(pos), show: true }
+    }
+}
+
+/// 上一拍的回聲還沒回來。回聲是排在重畫訊息後面的 WM_NULL：PZ 處理到它＝前面的都處理完了。
+static ECHO_PENDING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+unsafe extern "system" fn echo(_: HWND, _: u32, _: usize, _: LRESULT) {
+    ECHO_PENDING.store(false, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// PZ 那條執行緒上、遊戲視窗以外的可見頂層視窗（＝輸入法的組字視窗）矩形的雜湊；沒有就是 0。
+/// 組字視窗每次重新開始都換一個 HWND，所以看矩形、不看 HWND。
+fn composition_sig(game: HWND, thread: u32) -> u64 {
+    unsafe extern "system" fn visit(hwnd: HWND, acc: LPARAM) -> BOOL {
+        unsafe {
+            let (game, sig) = &mut *(acc.0 as *mut (HWND, u64));
+            let mut r = RECT::default();
+            if hwnd != *game && IsWindowVisible(hwnd).as_bool() && GetWindowRect(hwnd, &mut r).is_ok() {
+                for v in [r.left, r.top, r.right, r.bottom] {
+                    *sig = (*sig ^ v as u32 as u64).wrapping_mul(0x0100_0000_01b3);
+                }
+                *sig |= 1; // 有視窗就不會是 0
+            }
+            true.into()
+        }
+    }
+    let mut acc = (game, 0u64);
+    unsafe {
+        let _ = EnumThreadWindows(thread, Some(visit), LPARAM(&mut acc as *mut _ as isize));
+    }
+    acc.1
+}
+
 struct Guard {
     dir: PathBuf,
     hwnd: Option<HWND>, // 快取；IsWindow 失效才重掃（EnumWindows＋跨程序 GetWindowText 是主要 CPU 來源）
@@ -651,6 +799,10 @@ struct Guard {
     restorer: Restorer,
     exit: ExitLatch,
     exit_seen: SystemTime, // exiting.txt 已經看過的最新 mtime；起始值＝本工具啟動時間
+    preedit: Preedit,
+    live: Option<(HWND, u32)>,       // 這一輪可以畫組字的 PZ 視窗與它的執行緒；每輪重算
+    preedit_on: Option<(HWND, u32)>, // 最近一次畫組字的對象：不再 live 時對它收尾
+    echo_at: Option<Instant>,
 }
 
 impl Guard {
@@ -668,6 +820,10 @@ impl Guard {
             restorer: Restorer::default(),
             exit: ExitLatch::default(),
             exit_seen: SystemTime::now(),
+            preedit: Preedit::default(),
+            live: None,
+            preedit_on: None,
+            echo_at: None,
         };
         guard.rescan_layouts();
         guard
@@ -761,7 +917,68 @@ impl Guard {
         self.restorer.observe(now, fg, safe, restore)
     }
 
-    fn tick(&mut self, paused: bool, restore: bool) -> Status {
+    fn tick(&mut self, paused: bool, restore: bool, show_composition: bool) -> Status {
+        self.live = None;
+        let status = self.switch_tick(paused, restore);
+        self.live = self.live.filter(|_| show_composition);
+        self.preedit_tick();
+        status
+    }
+
+    /// 組字顯示這一輪。`live` 只在「PZ 在前景、打字中、回讀到的配置是支援的語言、開關開著」時有值；
+    /// 其他情況（PZ 離開前景、暫停、關掉開關、本工具結束）只做一件事：畫過就對 PZ 的輸入法視窗送一次
+    /// 「組字結束」把它收掉，免得一塊舊字留在桌面上。這是「只在 PZ 前景時動作」的第二個例外
+    /// （使用者 2026-11-24 裁定），對象仍然只有 PZ 自己的視窗。
+    fn preedit_tick(&mut self) {
+        if self.live.is_some() {
+            self.preedit_on = self.live;
+        }
+        let Some((hwnd, thread)) = self.preedit_on else { return };
+        let now = Instant::now();
+        let live = self.live.is_some();
+        let busy = ECHO_PENDING.load(std::sync::atomic::Ordering::Relaxed)
+            && self.echo_at.is_some_and(|t| now.duration_since(t) < ECHO_STALE);
+        let sig = if live { composition_sig(hwnd, thread) } else { 0 };
+        let beat = self.preedit.beat(now, live, busy, sig);
+        if beat == Beat::default() {
+            return;
+        }
+        // 每個 UI 執行緒有一個預設輸入法視窗，組字視窗由它管；它屬於 PZ 程序，不是別人的視窗
+        let ime = unsafe { ImmGetDefaultIMEWnd(hwnd) };
+        if ime.0.is_null() {
+            return;
+        }
+        unsafe {
+            // 高頻的三個訊息用 Post：PZ 卡住時不會把我們一起卡住
+            if beat.end {
+                let _ = PostMessageW(Some(ime), WM_IME_ENDCOMPOSITION, WPARAM(0), LPARAM(0));
+            }
+            if let Some((x, y)) = beat.pos {
+                // 位置要帶結構指標，只能 Send（系統代為跨程序搬資料）；限時，PZ 沒回應就下一拍再送
+                let form = COMPOSITIONFORM { dwStyle: CFS_POINT, ptCurrentPos: POINT { x, y }, rcArea: RECT::default() };
+                let sent = SendMessageTimeoutW(
+                    ime,
+                    WM_IME_CONTROL,
+                    WPARAM(IMC_SETCOMPOSITIONWINDOW as usize),
+                    LPARAM(&form as *const _ as isize),
+                    SMTO_ABORTIFHUNG,
+                    50,
+                    None,
+                );
+                self.preedit.pos_dirty = sent.0 == 0;
+            }
+            if beat.show {
+                let _ = PostMessageW(Some(ime), WM_IME_STARTCOMPOSITION, WPARAM(0), LPARAM(0));
+                let _ = PostMessageW(Some(ime), WM_IME_COMPOSITION, WPARAM(0), LPARAM(GCS_REDRAW));
+                let echoing = SendMessageCallbackW(ime, WM_NULL, WPARAM(0), LPARAM(0), Some(echo), 0).is_ok();
+                ECHO_PENDING.store(echoing, std::sync::atomic::Ordering::Relaxed);
+                self.echo_at = Some(now);
+            }
+        }
+    }
+
+    /// 切換輸入法的那一半：行為與加入組字顯示之前完全相同，只多設一個 `live`。
+    fn switch_tick(&mut self, paused: bool, restore: bool) -> Status {
         self.heartbeat();
         if paused {
             self.disown();
@@ -841,12 +1058,26 @@ impl Guard {
         }
         // 回讀確認我們真的把這個視窗切走了，才背上還原責任（請求 ≠ 已接受）
         self.guard_tick(hwnd.0 as isize, restore, posted_safe, current == safe);
+        if self.typing && preedit_lang(current) {
+            if let Ok(line) = fs::read_to_string(self.dir.join("caret.txt")) {
+                self.preedit.caret(line.trim());
+            }
+            self.live = Some((hwnd, thread));
+        }
         if self.typing { Status::Typing } else { Status::Guarding }
     }
 
     /// 還原還沒完成時不要放慢輪詢：前景穩定判定與回讀確認都要靠接下來這幾輪
     fn restoring(&self) -> bool {
         self.restorer.pending.is_some()
+    }
+}
+
+/// 本工具結束（選單「結束」、被新版請走）時，畫著的組字視窗也要收掉。
+impl Drop for Guard {
+    fn drop(&mut self) {
+        self.live = None;
+        self.preedit_tick();
     }
 }
 
@@ -864,14 +1095,17 @@ const RELEASES_API: &str = "https://api.github.com/repos/Minidoracat/Minidoracat
 const RELEASES_PAGE: &str = "https://github.com/Minidoracat/MinidoracatIMEGuardFor42/releases/latest";
 const UPDATE_EVERY: Duration = Duration::from_secs(24 * 60 * 60);
 
-/// settings.txt 每行 `key=0|1`；缺檔／缺行＝開。存檔時整檔重寫（只有兩個 key）。
+/// settings.txt 每行 `key=0|1`；缺檔／缺行＝開。存檔時整檔重寫（只有三個 key）。
 fn setting(dir: &Path, key: &str) -> bool {
     fs::read_to_string(dir.join("settings.txt")).map(|s| !s.contains(&format!("{key}=0"))).unwrap_or(true)
 }
 
-fn save_settings(dir: &Path, check_updates: bool, restore_desktop: bool) {
+fn save_settings(dir: &Path, check_updates: bool, restore_desktop: bool, show_composition: bool) {
     let _ = fs::create_dir_all(dir);
-    let body = format!("check_updates={}\nrestore_desktop={}\n", check_updates as u8, restore_desktop as u8);
+    let body = format!(
+        "check_updates={}\nrestore_desktop={}\nshow_composition={}\n",
+        check_updates as u8, restore_desktop as u8, show_composition as u8
+    );
     let _ = fs::write(dir.join("settings.txt"), body);
 }
 
@@ -963,6 +1197,7 @@ fn main() {
     let quit = MenuItem::new(s.menu_quit, true, None);
     let updates = CheckMenuItem::new(s.menu_check_updates, true, setting(&state_dir, "check_updates"), None);
     let restore = CheckMenuItem::new(s.menu_restore_desktop, true, setting(&state_dir, "restore_desktop"), None);
+    let composition = CheckMenuItem::new(s.menu_show_composition, true, setting(&state_dir, "show_composition"), None);
     // 開機自動啟動：唯一真相是 Startup 資料夾裡的捷徑本身，不另外存設定，預設沒有捷徑＝關
     // exe 搬過家就就地改寫捷徑（已經指向本 exe 時 set_enabled 完全不寫檔）。修不動就把錯誤攤開、
     // 選項停用：與其給一個「以為還會自動啟動」的勾，不如講清楚它現在指向別的地方。
@@ -980,6 +1215,7 @@ fn main() {
         &workshop,
         &github,
         &restore,
+        &composition,
         &startup_item,
         &updates,
         &PredefinedMenuItem::separator(),
@@ -1030,8 +1266,8 @@ fn main() {
             if let Some(url) = url {
                 unsafe { ShellExecuteW(None, w!("open"), url, None, None, SW_SHOWNORMAL) };
             }
-            if id == updates.id() || id == restore.id() {
-                save_settings(&state_dir, updates.is_checked(), restore.is_checked());
+            if id == updates.id() || id == restore.id() || id == composition.id() {
+                save_settings(&state_dir, updates.is_checked(), restore.is_checked(), composition.is_checked());
             }
             if id == startup_item.id() {
                 let want = startup_item.is_checked();
@@ -1054,14 +1290,18 @@ fn main() {
                 unsafe { ShellExecuteW(None, w!("open"), &HSTRING::from(RELEASES_PAGE), None, None, SW_SHOWNORMAL) };
             }
         }
-        let next = guard.tick(pause.is_checked(), restore.is_checked());
+        let next = guard.tick(pause.is_checked(), restore.is_checked(), composition.is_checked());
         if next != status {
             status = next;
             let _ = tray.set_icon(Some(icon(status)));
             let _ = tray.set_tooltip(Some(status.text(s)));
         }
-        // PZ 沒開時沒有東西要守，放慢到 500 ms 省得一直掃視窗；還原進行中除外（關遊戲後正是這條路）
-        let wait = if status == Status::NoGame && !guard.restoring() { TICK * 5 } else { TICK };
+        // 畫組字時照重畫節拍醒來。PZ 沒開時沒有東西要守，放慢到 500 ms 省得一直掃視窗；還原進行中除外（關遊戲後正是這條路）
+        let wait = match status {
+            _ if guard.live.is_some() => PULSE,
+            Status::NoGame if !guard.restoring() => TICK * 5,
+            _ => TICK,
+        };
         unsafe {
             let woke = MsgWaitForMultipleObjects(Some(&handles), false, wait.as_millis() as u32, QS_ALLINPUT);
             if let Some(handle) = watch
@@ -1429,5 +1669,128 @@ mod flow_tests {
         g.away_tick(t + ms(400), Some((PZ, true)), fg(7, SAFE), safe, true);
         assert!(g.restorer.owed);
         assert_eq!(g.away_tick(t + ms(800), Some((PZ, false)), fg(7, SAFE), safe, true), post(7, IME));
+    }
+}
+
+/// 組字顯示的節拍：什麼時候重畫、什麼時候先收掉舊字、什麼時候收尾。
+#[cfg(test)]
+mod preedit_tests {
+    use super::*;
+
+    fn ms(v: u64) -> Duration {
+        Duration::from_millis(v)
+    }
+    fn show() -> Beat {
+        Beat { show: true, ..Beat::default() }
+    }
+    fn sweep() -> Beat {
+        Beat { end: true, show: true, ..Beat::default() }
+    }
+    /// 已經在畫、位置送過、沒有組字視窗。
+    fn running(t: Instant) -> Preedit {
+        let mut p = Preedit::default();
+        p.caret("1 300 326");
+        assert_eq!(p.beat(t, true, false, 0), Beat { end: true, pos: Some((300, 326)), show: true });
+        p
+    }
+
+    #[test]
+    fn caret_line_must_be_three_numbers() {
+        assert_eq!(parse_caret("7 300 326"), Some((300, 326)));
+        assert_eq!(parse_caret("7 300.0 326.0"), Some((300, 326)), "Kahlua 的數字是 double");
+        assert_eq!(parse_caret("7 -5 0"), Some((-5, 0)));
+        for bad in ["", "7", "7 300", "7 300 326 9", "a 300 326", "7 x 326", "1"] {
+            assert_eq!(parse_caret(bad), None, "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn only_languages_verified_on_a_real_machine_are_on() {
+        let hkl = |v: usize| HKL(v as *mut core::ffi::c_void);
+        for v in [0x0404_0404, 0xE020_0404, 0x0C04_0C04, 0x1404_1404] {
+            assert!(preedit_lang(hkl(v)), "{v:#x}");
+        }
+        // 簡中、日文沒驗到；韓文實測無效；英文沒有組字
+        for v in [0x0804_0804, 0x1004_1004, 0xE001_0411, 0x0412_0412, 0x0409_0409] {
+            assert!(!preedit_lang(hkl(v)), "{v:#x}");
+        }
+    }
+
+    #[test]
+    fn nothing_is_drawn_without_a_caret_file() {
+        let mut p = Preedit::default();
+        assert_eq!(p.beat(Instant::now(), true, false, 0), Beat::default(), "舊版 MOD 不寫 caret.txt：不畫");
+        p.caret(""); // MOD 正在截斷重寫
+        p.caret("garbage");
+        assert_eq!(p.beat(Instant::now(), true, false, 0), Beat::default());
+    }
+
+    #[test]
+    fn redraws_on_the_pulse_and_waits_for_the_echo() {
+        let t = Instant::now();
+        let mut p = running(t);
+        assert_eq!(p.beat(t + ms(10), true, false, 0), Beat::default(), "還沒到下一拍");
+        assert_eq!(p.beat(t + PULSE, true, true, 0), Beat::default(), "PZ 還沒處理完上一拍：不再堆訊息");
+        assert_eq!(p.beat(t + PULSE, true, false, 0), show(), "平常只重畫：不收、位置不重送");
+    }
+
+    #[test]
+    fn a_text_change_clears_the_old_composition_at_once() {
+        let t = Instant::now();
+        let mut p = running(t);
+        p.caret("2 300 326"); // 字送出了：座標沒變、seq 變了
+        assert_eq!(p.beat(t + ms(1), true, false, 0), sweep(), "不等節拍，位置沒變就不重送");
+        p.caret("3 317 326");
+        assert_eq!(p.beat(t + ms(2), true, false, 0), Beat { end: true, pos: Some((317, 326)), show: true });
+        p.caret("3 317 326");
+        assert_eq!(p.beat(t + ms(2) + PULSE, true, false, 0), show(), "同一行不算變");
+    }
+
+    #[test]
+    fn a_failed_position_is_sent_again() {
+        let t = Instant::now();
+        let mut p = running(t);
+        p.pos_dirty = true; // preedit_tick 在 SendMessageTimeout 失敗時設回來
+        assert_eq!(p.beat(t + PULSE, true, false, 0), Beat { pos: Some((300, 326)), show: true, ..Beat::default() });
+    }
+
+    #[test]
+    fn leaving_ends_once_and_coming_back_starts_clean() {
+        let t = Instant::now();
+        let mut p = running(t);
+        assert_eq!(p.beat(t + ms(5), false, false, 0), Beat { end: true, ..Beat::default() });
+        assert_eq!(p.beat(t + ms(6), false, false, 0), Beat::default(), "收尾只送一次");
+        assert_eq!(p.beat(t + ms(7), true, false, 0), Beat { end: true, pos: Some((300, 326)), show: true });
+        let mut never = Preedit::default();
+        assert_eq!(never.beat(t, false, false, 0), Beat::default(), "沒畫過就沒有東西要收");
+    }
+
+    #[test]
+    fn a_still_composition_window_is_cleared_but_steady_typing_never_is() {
+        let t = Instant::now();
+        let mut p = running(t);
+        // 連續打字：矩形一直變，永遠不清
+        let mut at = t;
+        for sig in 1..=40u64 {
+            at += PULSE;
+            assert_eq!(p.beat(at, true, false, sig), show(), "sig {sig}");
+        }
+        // 停手：靜止滿 SWEEP_IDLE 才清，只清一次
+        let still = at;
+        assert_eq!(p.beat(still + SWEEP_IDLE - PULSE, true, false, 40), show());
+        assert_eq!(p.beat(still + SWEEP_IDLE, true, false, 40), sweep());
+        // 清完的過渡（視窗消失又出現）不算活動，不會循環觸發
+        assert_eq!(p.beat(still + SWEEP_IDLE + PULSE, true, false, 0), show());
+        assert_eq!(p.beat(still + SWEEP_IDLE + SWEEP_QUIET, true, false, 40), show());
+        assert_eq!(p.beat(still + SWEEP_IDLE * 2 + SWEEP_QUIET, true, false, 40), show(), "清過的矩形不再每 0.4 秒清");
+        // 視窗還在、還是沒動（玩家停手後才按 Esc 取消：沒有任何訊號）：隔 SWEEP_AGAIN 再清
+        assert_eq!(p.beat(still + SWEEP_IDLE + SWEEP_AGAIN, true, false, 40), sweep());
+        // 清掉之後沒有視窗了：不再清
+        let gone = still + SWEEP_IDLE + SWEEP_AGAIN + SWEEP_QUIET;
+        assert_eq!(p.beat(gone, true, false, 0), show());
+        assert_eq!(p.beat(gone + SWEEP_AGAIN * 3, true, false, 0), show());
+        // 又開始組字：重新從 SWEEP_IDLE 起算
+        assert_eq!(p.beat(gone + SWEEP_AGAIN * 4, true, false, 7), show());
+        assert_eq!(p.beat(gone + SWEEP_AGAIN * 4 + SWEEP_IDLE, true, false, 7), sweep());
     }
 }

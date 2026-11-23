@@ -4,15 +4,15 @@ MinidoracatIMEGuardFor42 — 訊號端（純 Lua，零 native）。
 【問題】Windows 上任何 IME（注音／拼音／日文／韓文…）在組字模式時，按鍵先被輸入法攔成
 VK_PROCESSKEY，GLFW 的 win32 後端直接丟掉（win32_window.c），所以移動與所有操作鍵在進
 Java 之前就消失了。Kahlua 碰不到 user32，MOD 本身無法切換輸入法。
-【分工】本檔只回答兩個問題，其餘都由配套的 pz-ime-guard 常駐工具處理：
-  1.「玩家現在是不是在打字？」——Core.isDoingTextEntry（Core.java:2036，GameKeyboard.isKeyDown:125
-     用的同一個閘門）的變化寫進
+【分工】本檔只回答三個問題，其餘都由配套的 pz-ime-guard 常駐工具處理：
+  1.「玩家現在是不是在打字？」——Core.isDoingTextEntry（GameKeyboard.isKeyDown 用的同一個閘門）的變化寫進
        %USERPROFILE%\Zomboid\Lua\MinidoracatIMEGuard\state.txt   "1"＝打字中、"0"＝沒有
      工具讀它：0 → 把 PZ 視窗切到 en-US；1 → 切回玩家原本的輸入法。
   2.「玩家是不是按了關程序？」——見下方「正常退出」。
+  3.「游標在視窗的哪裡、框裡的字變了沒？」——打字中才寫 caret.txt，見下方「組字顯示」。
 工具每 2 秒把 epoch 秒寫進同目錄 heartbeat.txt；進遊戲時讀不到或過期就提醒一次。
-【邊界】getFileWriter 只能寫 Zomboid\Lua\ 下的 txt（LuaManager.java:6729-6733,1034）；
-只在狀態改變時寫檔，OnTickEvenPaused／OnFETick 每 frame 只多一個 Java getter。
+【邊界】getFileWriter 只能寫 Zomboid\Lua\ 下的 txt（LuaManager.getFileWriter）；
+只在內容改變時寫檔，不打字時 OnTickEvenPaused／OnFETick 每 frame 只多一個 Java getter。
 ]]
 
 local TAG = "[MinidoracatIMEGuardFor42]"
@@ -39,8 +39,79 @@ local function writeSignal(name, content)
     writer:close()
 end
 
+--[[ 組字顯示（caret.txt，一行 "<seq> <x> <y>"）
+
+PZ 的 GLFW 不讓輸入法畫組字視窗，也把「組字更新／結束」通知吃掉，所以玩家看不到正在組的字。
+工具會請輸入法自己畫出來，但它不知道該畫在哪、也不知道字什麼時候送出了——這兩件由這裡回答：
+  x y  組字視窗左上角要放的位置＝游標處，PZ 視窗內的像素（UI 座標就是視窗像素），整數
+  seq  框內文字每變一次加一：文字變了（送出、刪字）但座標沒變時內容仍然不同，工具據此收掉舊的組字
+Core.currentTextEntryBox 沒有 Lua getter、反射讀欄位限 debug（LuaManager.validateReflectionAccess），
+所以開始打字時掃一次 UIManager.getUI() 找聚焦的 UITextBox2 並記住；滑鼠點擊由 Java 直接聚焦，
+包 ISTextEntryBox:focus 抓不全。找不到（不是 UITextBox2 的輸入框）就給畫面中下方的固定點。
+]]
+local CARET_FILE = DIR .. "caret.txt"
+local MOVE_EVERY = 15   -- tick；只有位置變（拖面板、捲動）時最多多久寫一次
+local RESCAN_EVERY = 30 -- tick；找不到框時多久重掃一次 UI 樹
+local box, boxText, caretLine
+local seq, sinceWrite, sinceScan = 0, 0, 0
+
+local function findFocused(list) -- 清單由下到上，倒著找＝上層優先
+    for i = list:size() - 1, 0, -1 do
+        local e = list:get(i)
+        if instanceof(e, "UIElement") and e:isVisible() then
+            if instanceof(e, "UITextBox2") then
+                if e:isFocused() then return e end
+            else
+                local found = findFocused(e:getControls())
+                if found then return found end
+            end
+        end
+    end
+end
+
+local function caretOf(j, text)
+    local inset = j:getInset()
+    local x, y = j:getAbsoluteX() + inset, j:getAbsoluteY() + inset
+    local t = j:getTable()
+    local font = t and t.font or UIFont.Small
+    if j:isMultipleLine() then
+        -- shortcut: 多行框只對到行（行內 x 要重做引擎的折行），放在游標行的下一行靠左；有人回報再做
+        y = y + (j:getCursorLine() + 1) * getTextManager():getFontHeight(font) + j:getYScroll()
+    else
+        local w = getTextManager():MeasureStringX(font, string.sub(text, 1, j:getCursorPos()))
+        -- shortcut: 文字比框寬時引擎的水平捲動量讀不到（UITextBox2 沒有 getter），游標最遠算到框右緣
+        x = x + math.min(w, j:getWidth() - inset * 2)
+    end
+    return math.floor(x), math.floor(y)
+end
+
+local function trackCaret(started)
+    sinceWrite, sinceScan = sinceWrite + 1, sinceScan + 1
+    if started or (box and not box:isFocused()) or (not box and sinceScan >= RESCAN_EVERY) then
+        local found = findFocused(UIManager.getUI())
+        started = started or found ~= box -- 換了框（含從有到無）：位置馬上寫，舊位置不該多留十幾個 tick
+        box, boxText, sinceScan = found, nil, 0
+    end
+    local x, y, text
+    if box then
+        text = box:getText() or ""
+        x, y = caretOf(box, text)
+    else
+        local core = getCore()
+        x, y = math.floor(core:getScreenWidth() / 2), math.floor(core:getScreenHeight() * 2 / 3)
+    end
+    local changed = started or text ~= boxText
+    if changed then seq, boxText = seq + 1, text end
+    local line = seq .. " " .. x .. " " .. y
+    if line ~= caretLine and (changed or sinceWrite >= MOVE_EVERY) then
+        caretLine, sinceWrite = line, 0
+        writeSignal(CARET_FILE, line)
+    end
+end
+
 local function onTick()
     local typing = getCore():isDoingTextEntry()
+    if typing then trackCaret(typing ~= lastTyping) end -- 先寫位置：工具被 state.txt 叫醒時已經讀得到
     if typing == lastTyping then return end
     lastTyping = typing
     writeSignal(STATE_FILE, typing and "1" or "0")
