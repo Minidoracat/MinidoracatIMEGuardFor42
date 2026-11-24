@@ -44,8 +44,8 @@ https://steamcommunity.com/sharedfiles/filedetails/?id=3802890539
 [list]
 [*] [b]What it fixes[/b]: PZ never shows the text an IME is still composing, so you type blind until you commit. The tool now brings up the IME's own small composition window at the text caret; it updates with every key, the candidate list follows it, and it goes away when you commit, delete everything or cancel.
 [*] [b]Needs[/b]: the new mod and the new tool together. With only one of them updated nothing is drawn; everything else works as before.
-[*] [b]On for[/b]: Traditional Chinese IMEs only. Tested with Microsoft Bopomofo; other Traditional Chinese IMEs (Cangjie, Quick…) are enabled too but not verified.
-[*] [b]Not yet[/b]: Simplified Chinese and Japanese IMEs are not verified and stay off in this version. Korean IMEs showed no effect in testing and stay off.
+[*] [b]On for[/b]: Traditional Chinese, Simplified Chinese and Japanese IMEs. Tested with Microsoft Bopomofo, Microsoft Pinyin and Microsoft Japanese IME; other IMEs for these languages (Cangjie, Quick, Sogou Pinyin, Google Japanese Input…) are enabled too but not verified.
+[*] [b]Off for[/b]: Korean IMEs showed no effect in testing and stay off.
 [*] [b]Turn it off[/b]: right-click the tray icon and untick "Show what I'm composing while typing (experimental)".
 [/list]
 [h3]Restore on leave[/h3]
@@ -110,7 +110,7 @@ The tool looks at the language of the Windows keyboard layout, not the IME brand
 [table]
 [tr][th]Option[/th][th]Default[/th][/tr]
 [tr][td]Restore my IME when leaving the game[/td][td]On[/td][/tr]
-[tr][td]Show what I'm composing while typing (experimental)[/td][td]On: only does something with Traditional Chinese IMEs[/td][/tr]
+[tr][td]Show what I'm composing while typing (experimental)[/td][td]On: works with Traditional Chinese, Simplified Chinese and Japanese IMEs[/td][/tr]
 [tr][td]Check for updates (on start, daily)[/td][td]On: offers the download page when a new version is out[/td][/tr]
 [tr][td]Start when I sign in to Windows[/td][td]Off[/td][/tr]
 [/table]
@@ -126,7 +126,7 @@ The tool looks at the language of the Windows keyboard layout, not the IME brand
 [*] [b]Windows only[/b]: macOS/Linux do not have this problem.
 [*] [b]Two copies of PZ[/b]: with two copies of PZ open on one PC, only the first window is guarded.
 [*] [b]Restoring the desktop IME is best-effort[/b]: closing with X or a crash cannot notify the tool (see the Alt+Tab and quitting questions).
-[*] [b]Composition display: redraws while you pause[/b]: if you stop mid-composition, the window is redrawn about once a second and may blink (under 0.04 s each time in testing); it does not while you keep typing.
+[*] [b]Composition display: redraws while you pause[/b]: if you stop mid-composition, the window is redrawn about once a second and may blink (0.05 s or less each time in testing); it does not while you keep typing.
 [*] [b]Composition display: multi-line boxes[/b]: the window appears on the line below the caret's line, at the left edge, not right at the caret.
 [*] [b]Composition display: very long single lines[/b]: once the text is wider than the box, the window stays at the box's right edge.
 [*] [b]Composition display: looks[/b]: it is the IME's own window; its font and colors come from the IME, not the game.

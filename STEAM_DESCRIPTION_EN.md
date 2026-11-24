@@ -30,7 +30,7 @@ It keeps PZ on an English keyboard while you play and switches back to your own 
 [*] [b]Your IME when you type[/b]: chat, search and naming boxes bring back the last IME you used in PZ.
 [*] [b]Chinese, Japanese, Korean[/b]: guards CJK IMEs and leaves plain keyboard layouts alone.
 [*] [b]Restore on leave[/b]: your desktop IME comes back when you leave the game.
-[*] [b]See what you are composing[/b] (experimental): with a Traditional Chinese IME, the text you are composing and the candidate list show up next to the caret. Tested with Microsoft Bopomofo; Simplified Chinese and Japanese IMEs are not verified yet and stay off in this version.
+[*] [b]See what you are composing[/b] (experimental): with a Traditional Chinese, Simplified Chinese or Japanese IME, the text you are composing and the candidate list show up next to the caret. Tested with Microsoft Bopomofo, Microsoft Pinyin and Microsoft Japanese IME; other IMEs for these languages are enabled too but not verified.
 [*] [b]Tray lamp[/b]: a colored lamp shows the guard state at a glance.
 [*] [b]Autostart and updates[/b]: optionally start with Windows, with automatic update checks.
 [/list]
