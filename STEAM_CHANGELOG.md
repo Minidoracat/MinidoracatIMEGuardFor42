@@ -1,11 +1,20 @@
-[h1]Minidoracat IME Guard for B42 42.20.4-0.2.1[/h1]
-[i]2026-10-27[/i]
+[h1]Minidoracat IME Guard for B42 42.22.2-0.3.0[/h1]
+[i]2026-11-24[/i]
+[b]English summary[/b]
+[list]
+[*] New (experimental): while you type in chat, search or naming boxes, your IME's own composition window now appears at the text cursor, so you can see what you are composing before you confirm it.
+[*] Works with Traditional Chinese, Simplified Chinese and Japanese IMEs. Tested with Microsoft Bopomofo, Microsoft Pinyin and Microsoft Japanese IME; other IMEs of these languages are enabled but untested. Korean IMEs are not supported yet.
+[*] You need both the updated MOD (Steam updates it) and the new companion tool 0.3.0 (the tool will tell you a new version is available, or get it from GitHub Releases).
+[*] Password boxes never show the composition window. You can turn the feature off in the tool's tray menu.
+[/list]
 
 本版同時更新 MOD 與配套工具：組字顯示要新的 MOD 和新的工具一起才有。MOD 由 Steam 自動更新；工具會提示有新版，也可以到 GitHub Releases 下載 pz-ime-guard-0.3.0.exe。只更新其中一邊時沒有這項顯示，其他功能照舊。
 
-[h3]🔧 修正[/h3]
+[h3]✨ 新增[/h3]
 [list]
-[*] [b]遊戲內 MOD 清單看不到本 MOD 的封面圖[/b]：從第一版起，MOD 清單裡本 MOD 的封面一直是空白。現在 MOD 清單會正常顯示封面。MOD 功能沒有受影響，更新後不用做任何設定。
+[*] [b]打字時看得到組字中的字（實驗性）[/b]：以前在聊天、搜尋、命名欄打中文或日文，選字確認前什麼都看不到，只能盲打。現在文字游標的位置會出現輸入法自己的組字小視窗，注音符號、拼音、假名和還沒送出的字會跟著你按的鍵更新，候選字清單也跟在旁邊；送出、刪光或取消後自動消失。
+[*] [b]支援的輸入法[/b]：繁體中文、簡體中文、日文輸入法。已實測的是微軟注音、微軟拼音、微軟日文輸入法；同語言的其他輸入法（倉頡、速成、搜狗拼音、Google 日本語入力等）同樣會開啟但還沒驗證。韓文輸入法實測沒有效果，不開。
+[*] [b]可以關掉[/b]：在工具的系統匣右鍵選單取消「打字時顯示組字中的字（實驗性）」，預設開。
 [/list]
 
 [h3]📌 已知限制[/h3]
