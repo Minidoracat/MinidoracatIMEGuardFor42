@@ -106,26 +106,31 @@ fn installed_layouts() -> Vec<HKL> {
     }
 }
 
-/// 第一個可見且標題為 "Project Zomboid" 的頂層視窗（GLFW 視窗 FindWindowW 找不到，EnumWindows 才看得到）。
-/// ponytail: 兩個 client 同機時只守第一個。
-fn find_game_window() -> Option<HWND> {
+/// 可見且標題為 "Project Zomboid" 的頂層視窗。
+fn is_game_window(hwnd: HWND) -> bool {
     const TITLE: &[u16] = &[
         b'P' as u16, b'r' as u16, b'o' as u16, b'j' as u16, b'e' as u16, b'c' as u16, b't' as u16, b' ' as u16,
         b'Z' as u16, b'o' as u16, b'm' as u16, b'b' as u16, b'o' as u16, b'i' as u16, b'd' as u16,
     ];
-    unsafe extern "system" fn visit(hwnd: HWND, found: LPARAM) -> BOOL {
-        unsafe {
-            if !IsWindowVisible(hwnd).as_bool() {
-                return true.into();
-            }
-            let mut buf = [0u16; 32];
-            let len = GetWindowTextW(hwnd, &mut buf) as usize;
-            if &buf[..len] == TITLE {
-                *(found.0 as *mut Option<HWND>) = Some(hwnd);
-                return false.into();
-            }
-            true.into()
+    unsafe {
+        if !IsWindowVisible(hwnd).as_bool() {
+            return false;
         }
+        let mut buf = [0u16; 32];
+        let len = GetWindowTextW(hwnd, &mut buf) as usize;
+        &buf[..len] == TITLE
+    }
+}
+
+/// 第一個 `is_game_window` 的頂層視窗（GLFW 視窗 FindWindowW 找不到，EnumWindows 才看得到）。
+/// ponytail: 兩個 client 同機時只守第一個；在前景的那個由 `switch_tick` 優先認。
+fn find_game_window() -> Option<HWND> {
+    unsafe extern "system" fn visit(hwnd: HWND, found: LPARAM) -> BOOL {
+        if is_game_window(hwnd) {
+            unsafe { *(found.0 as *mut Option<HWND>) = Some(hwnd) };
+            return false.into();
+        }
+        true.into()
     }
     let mut found: Option<HWND> = None;
     unsafe {
@@ -1004,14 +1009,14 @@ impl Guard {
             self.rescan_layouts();
             return Status::NoEnglish;
         };
+        let fg = unsafe { GetForegroundWindow() };
         let cached = self.hwnd.filter(|h| unsafe { IsWindow(Some(*h)).as_bool() });
-        let hwnd = cached.or_else(|| {
-            self.hwnd = find_game_window();
-            self.hwnd
-        });
+        // 前景本身就是 PZ 視窗就改認它：先快取到另一個同名視窗（沒關乾淨的上一局等）時，才不會一直當成「不在前景」
+        let cached = if cached != Some(fg) && is_game_window(fg) { Some(fg) } else { cached };
+        let hwnd = cached.or_else(find_game_window);
+        self.hwnd = hwnd;
         let signal = self.exit_signal();
         let quitting = self.exit.update(hwnd.map(|h| h.0 as isize), signal);
-        let fg = unsafe { GetForegroundWindow() };
         let now = Instant::now();
         // 玩家確認關程序後，視窗還會活很久（GameWindow.exit() 存檔／關 Steam／壓日誌），而且多半還是前景。
         // 那段時間遊戲已經不吃按鍵，繼續守只會把 en-US 留在桌面上，所以訊號一到就當作離開。
